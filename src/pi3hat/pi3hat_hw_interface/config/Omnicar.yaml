@@ -15,8 +15,6 @@ controller_manager:
       type: distributor_state_broadcaster/Distributor_State_Broadcaster
     debug_broad:
       type: debug_broadcaster/Debug_Broadcaster
-    debug_broad:
-      type: debug_broadcaster/Debug_Broadcaster
     imu_sensor:
        type: imu_sensor_broadcaster/IMUSensorBroadcaster
 

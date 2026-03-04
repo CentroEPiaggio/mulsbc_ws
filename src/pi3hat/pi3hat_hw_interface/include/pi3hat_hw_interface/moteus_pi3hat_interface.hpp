@@ -148,7 +148,7 @@ namespace pi3hat_hw_interface
                 //std::vector<std::unique_ptr<pi3hat_hw_interface::actuator_manager::Actuator_Manager>> actuators_;
                 std::shared_ptr<mjbots::pi3hat::Pi3HatMoteusTransport> pi3hat_transport_;
                 unsigned int num_actuators_ = 0, num_distributor_ = 0;
-                std::vector<mjbots::moteus::CanFdFrame> command_framees_,replies_;
+                std::vector<mjbots::moteus::CanFdFrame> command_frames_,replies_;
                 std::vector<int> actuator_index_ = {}, distributor_index_ ={};
                 std::map<int,std::unique_ptr<pi3hat_hw_interface::actuator_manager::Actuator_Manager>> actuators_;
                 std::map<int,std::unique_ptr<pi3hat_hw_interface::power_dist_manager::Distributor_Manager>> distributors_;
@@ -184,7 +184,7 @@ namespace pi3hat_hw_interface
                 double invalid_cycle_;
                 double cycle_duration_;
                 std::vector<double> packet_loss_;
-                bool first_cycle_ = true, attittude_requested_ = false;
+                bool first_cycle_ = true, attitude_requested_ = false;
                 AsyncCallback clb_as_;
                 mjbots::pi3hat::Pi3HatMoteusTransport::Options p_opt_;
         };

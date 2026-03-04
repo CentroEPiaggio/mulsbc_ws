@@ -90,7 +90,7 @@ namespace pi3hat_hw_interface
     class ElementInfo
     {
         public:
-            T get_cofigurable()
+            T get_configurable()
             {
                 return configurable_;
             }

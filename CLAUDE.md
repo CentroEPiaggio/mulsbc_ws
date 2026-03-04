@@ -27,11 +27,11 @@ source install/local_setup.bash
 
 ```bash
 ros2 launch pi3hat_hw_interface moteu_pi3hat_interface.launch.py \
-  urdf_file:=Omnicar.urdf.xacro \
+  urdf_file:=Omnicar.xacro \
   conf_file:=Omnicar.yaml
 ```
 
-Default launch args are `JumpingLeg2d.urdf.xacro` / `jump_leg.yaml`. URDF files live in `pi3hat_hw_interface/urdf/`, config YAMLs in `pi3hat_hw_interface/config/`.
+Default launch args are `JumpingLeg2d.xacro` / `jump_leg.yaml`. URDF files live in `pi3hat_hw_interface/urdf/`, config YAMLs in `pi3hat_hw_interface/config/`.
 
 The launch file starts `ros2_control_node` (controller_manager) which loads the hardware plugin and spawns controllers defined in the YAML.
 
@@ -77,7 +77,7 @@ omni_vel_controller             ← Omnidirectional wheel velocity controller
 
 ### Hardware Configuration (URDF)
 
-Robot configuration is defined in `.urdf.xacro` files. Each joint element configures a Moteus motor:
+Robot configuration is defined in `.xacro` files. Each joint element configures a Moteus motor:
 - `id`/`bus` — CAN ID and Pi3Hat bus number (1-5)
 - `KP`/`KD`/`KI` — Low-level PID gains (configured at startup via diagnostic commands; **must not exceed 16-bit representability**)
 - `actuator_trasmission` — Motor-to-joint gear ratio (all motor quantities are converted through this)
@@ -89,7 +89,7 @@ Controller manager YAML (e.g. `Omnicar.yaml`) sets `update_rate` (typically 500 
 
 ### Robot Configurations
 
-- **Omnicar** (`Omnicar.urdf.xacro` + `Omnicar.yaml`) — 4 omniwheels + 2 power distributors. Motors on buses 1-4, distributors on bus 5.
+- **Omnicar** (`Omnicar.xacro` + `Omnicar.yaml`) — 4 omniwheels + 2 power distributors. Motors on buses 1-4, distributors on bus 5.
 - **JumpingLeg2d** — 2-DOF leg (HIP + KNEE).
 - **SingleJoint/SingleJointSE** — Single motor test setups.
 

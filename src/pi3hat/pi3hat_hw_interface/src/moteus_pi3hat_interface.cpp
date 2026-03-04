@@ -51,14 +51,14 @@ namespace pi3hat_hw_interface
             }
 
             
-            p_opt_ = pi3hat_parser->get_cofigurable();
+            p_opt_ = pi3hat_parser->get_configurable();
             
             p_opt_.default_input.attitude = nullptr;
             
             if(p_opt_.default_input.request_attitude)
             {
                 RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),"Pi3hat IMU Attitude Data Requested");
-                attittude_requested_ = true;
+                attitude_requested_ = true;
                 p_opt_.default_input.request_attitude = false;
             }
             pi3hat_transport_ = std::make_shared<mjbots::pi3hat::Pi3HatMoteusTransport>(p_opt_);
@@ -98,12 +98,12 @@ namespace pi3hat_hw_interface
             // actuators_.resize(num_actuators_);
             packet_loss_.resize(num_actuators_ + num_distributor_);
             //distributors.resize
-            command_framees_.resize(num_actuators_ + num_distributor_);
+            command_frames_.resize(num_actuators_ + num_distributor_);
             replies_.resize((num_actuators_ + num_distributor_)*2);
             for(auto i: actuator_index_)
             {
                 // allocate actuator manager
-                actuators_.emplace(std::make_pair(i,std::make_unique<pi3hat_hw_interface::actuator_manager::Actuator_Manager>(&command_framees_[i])));
+                actuators_.emplace(std::make_pair(i,std::make_unique<pi3hat_hw_interface::actuator_manager::Actuator_Manager>(&command_frames_[i])));
                 jnt_name = info.joints[i].name;
                 try
                 {
@@ -129,7 +129,7 @@ namespace pi3hat_hw_interface
                 }
                 
                 
-                act_opt = actuator_parser->get_cofigurable();
+                act_opt = actuator_parser->get_configurable();
                 actuators_[i]->SetActuatorParam(
                     act_opt,
                     id,
@@ -147,7 +147,7 @@ namespace pi3hat_hw_interface
                     return CallbackReturn::FAILURE;
                 }
                 actuators_[i]->setSecondEncoderSource(se_source);
-                actuators_[i]->setQueryFormat(query_parser->get_cofigurable());
+                actuators_[i]->setQueryFormat(query_parser->get_configurable());
                 
 
             }
@@ -155,7 +155,7 @@ namespace pi3hat_hw_interface
             for(auto i: distributor_index_)
             {
                 // allocate actuator manager
-                distributors_.emplace(std::make_pair(i,std::make_unique<pi3hat_hw_interface::power_dist_manager::Distributor_Manager>(&command_framees_[i])));
+                distributors_.emplace(std::make_pair(i,std::make_unique<pi3hat_hw_interface::power_dist_manager::Distributor_Manager>(&command_frames_[i])));
                 jnt_name = info.joints[i].name;
                 try
                 {
@@ -196,7 +196,7 @@ namespace pi3hat_hw_interface
                     RCLCPP_ERROR(rclcpp::get_logger(LOGGER_NAME),"Query Format Parsing throw: %s",e.what());
                     return CallbackReturn::FAILURE;
                 }
-                distributors_[i]->setQueryFormat(distributor_parser->get_cofigurable());
+                distributors_[i]->setQueryFormat(distributor_parser->get_configurable());
                 
 
             }
@@ -241,7 +241,7 @@ namespace pi3hat_hw_interface
         CallbackReturn MoteusPi3Hat_Interface::on_activate(const rclcpp_lifecycle::State&)
         {
             pi3hat_transport_.reset();
-            if(attittude_requested_)
+            if(attitude_requested_)
             {
                 p_opt_.default_input.request_attitude = true;
                 p_opt_.default_input.attitude = & filtered_IMU_;
@@ -258,8 +258,8 @@ namespace pi3hat_hw_interface
                 mjbots::moteus::BlockingCallback cbk;
 
                 pi3hat_transport_->Cycle(
-                        command_framees_.data(),
-                        command_framees_.size(),
+                        command_frames_.data(),
+                        command_frames_.size(),
                         &replies_,
                         &filtered_IMU_,
                         nullptr,
@@ -283,8 +283,8 @@ namespace pi3hat_hw_interface
             // }
             
             // pi3hat_transport_->BlockingCycle(
-            //     command_framees_.data(),
-            //     command_framees_.size(),
+            //     command_frames_.data(),
+            //     command_frames_.size(),
             //     &replies_
             // );
             return CallbackReturn::SUCCESS;
@@ -303,8 +303,8 @@ namespace pi3hat_hw_interface
                 mjbots::moteus::BlockingCallback cbk;
 
                 pi3hat_transport_->Cycle(
-                        command_framees_.data(),
-                        command_framees_.size(),
+                        command_frames_.data(),
+                        command_frames_.size(),
                         &replies_,
                         &filtered_IMU_,
                         nullptr,
@@ -327,7 +327,7 @@ namespace pi3hat_hw_interface
         std::vector<hardware_interface::StateInterface> MoteusPi3Hat_Interface::export_state_interfaces()
         {   
             std::vector<hardware_interface::StateInterface> stt_int;
-            if(attittude_requested_)
+            if(attitude_requested_)
             {
                 stt_int.emplace_back(
                     hardware_interface::StateInterface(
@@ -462,7 +462,7 @@ namespace pi3hat_hw_interface
                     invalid_cycle_ = 0.0;
                     cycle_duration_ = std::chrono::duration<double>(t_s_read_-t_e_write_).count();
                     //parse Imu information
-                    if(attittude_requested_)
+                    if(attitude_requested_)
                     {
                         imu_orientation_ = filtered_IMU_.attitude;
                         imu_angular_velocity_ = filtered_IMU_.rate_dps;
@@ -523,13 +523,13 @@ namespace pi3hat_hw_interface
                 for(auto i : actuator_index_)
                     actuators_[i]->MakeCommand();
                     // RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),"Command for actuator %d %d",
-                    //     command_framees_[i].expected_reply_size ,command_framees_[i].reply_required
+                    //     command_frames_[i].expected_reply_size ,command_frames_[i].reply_required
                     // );
                 for(auto i : distributor_index_)
                     distributors_[i]->MakeQuery();
                 pi3hat_transport_->Cycle(
-                    command_framees_.data(),
-                    command_framees_.size(),
+                    command_frames_.data(),
+                    command_frames_.size(),
                     &replies_,
                     &filtered_IMU_,
                     nullptr,

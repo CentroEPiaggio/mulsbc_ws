@@ -104,47 +104,47 @@
             <param name="second_encoder_source">1</param>
             <param name="type">motor</param>
             
-            <param name="KP">00.0</param> 
-            <param name="KD">0.0</param> 
-            <param name="KI">0.0</param> 
+            <param name="KP">0.0</param>
+            <param name="KD">0.0</param>
+            <param name="KI">0.0</param>
             <param name="ilimit">0.0</param>
             <param name="iratelimit">0.0</param>
             <param name="max_position_slip">0.0</param>
             <param name="max_velocity_slip">0.0</param>
             <param name="enable_motor_temperature">0</param>
-            <param name="max_pos_limit">5000.0</param> 
+            <param name="max_pos_limit">5000.0</param>
             <param name="min_pos_limit">-5000.0</param>
             <param name="max_velocity">100.0</param>
             <param name="max_effort">10.0</param>
             <param name="actuator_trasmission">9.0</param>
             <param name="position_offset">-0.1059179</param>
-            <param name="second_encoder_trasmission">3.23076923</param> 
+            <param name="second_encoder_trasmission">3.23076923</param>
 
-            <param name="position_res">64</param> 
-            <param name="velocity_res">64</param> 
-            <param name="torque_res">64</param> 
+            <param name="position_res">64</param>
+            <param name="velocity_res">64</param>
+            <param name="torque_res">64</param>
             <param name="q_current_res">8</param>
             <param name="d_current_res">0</param>
             <param name="abs_position_res">0</param>
             <param name="power_res">0</param>
             <param name="motor_temperature_res">0</param>
-            <param name="voltage_res">0</param> 
+            <param name="voltage_res">0</param>
             <param name="temperature_res">8</param>
             <param name="position_error_res">64</param>
             <param name="velocity_error_res">64</param>
             <param name="torque_error_res">64</param>
             <param name="second_encoder_position_res">64</param>
-            <param name="second_encoder_velocity_res">64</param> 
+            <param name="second_encoder_velocity_res">64</param>
 
         </joint>
 
-         <joint name="LH_WHEEL_JNT"> 
+         <joint name="LH_WHEEL_JNT">
             <param name="id">9</param>
             <param name="bus">1</param>
             <param name="second_encoder_source">1</param>
             <param name="type">motor</param>
-            
-            <param name="KP">00.0</param> 
+
+            <param name="KP">0.0</param> 
             <param name="KD">0.0</param> 
             <param name="KI">0.0</param> 
             <param name="ilimit">0.0</param>

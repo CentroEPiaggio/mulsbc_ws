@@ -40,13 +40,11 @@ class AsyncCallback
             //preliminary check to not direct block the mutex
             if(!done_.load(std::memory_order_acquire))
                 return -1;
-                // lock the mutex in the actual scope
-                std::lock_guard<std::mutex> lock(mutex_);
-                done_.store(false);
-                RCLCPP_DEBUG(rclcpp::get_logger("CALLBACK"),"try consume");
 
-                return result_.load();
-            
+            std::lock_guard<std::mutex> lock(mutex_);
+            done_.store(false);
+            RCLCPP_DEBUG(rclcpp::get_logger("CALLBACK"),"try consume");
+            return result_.load();
         }
      private:
         std::atomic<bool> done_{false};
@@ -182,7 +180,7 @@ class MoteusPi3hatNode : public  Node
                 
                
                 
-                u_int32_t test = static_cast<u_int32_t>(result->values.extra[0].value);
+                uint32_t test = static_cast<uint32_t>(result->values.extra[0].value);
                 RCLCPP_INFO(this->get_logger(),"validity %s",((test & (1<<0)) != 0) && ((test & (1<<1)) != 0) ? "true":"false");
                 RCLCPP_INFO(this->get_logger(),"validity %s",((test & (1<<2) != 0)) && ((test & (1<<3)) != 0) != 0 ? "true":"false");
                 RCLCPP_INFO(this->get_logger(),"validity %s",((test & (1<<4) != 0)) && ((test & (1<<5)) != 0) != 0 ? "true":"false");
@@ -330,7 +328,7 @@ int main(int argc, char * argv[])
     node->conf_set("conf get id.id\n");
     
     // node->conf_set("conf set servo.pid_position.kd 0.0\n");
-    RCLCPP_INFO(rclcpp::get_logger("PORCODIO"),"pass here");
+    RCLCPP_INFO(rclcpp::get_logger("TEST_DEBUG"),"pass here");
     // node->test_encoder_validity();
     // node->send_sd(true);
     node->send_sync_vel(1000);

@@ -3,7 +3,7 @@
 <package format="3">
   <name>moteus_pi3hat</name>
   <version>0.0.0</version>
-  <description>TODO: Package description</description>
+  <description>Low-level C++ library wrapping Pi3Hat CAN-FD communication with Moteus controllers</description>
   <maintainer email="cionix90@gmail.com">Jacopo Cioni</maintainer>
   <license>TODO: License declaration</license>
 

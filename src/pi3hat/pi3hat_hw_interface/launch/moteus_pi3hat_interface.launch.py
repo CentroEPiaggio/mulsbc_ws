@@ -1,5 +1,5 @@
 import os
- 
+
 from ament_index_python.packages import get_package_share_path
 
 from launch import LaunchDescription
@@ -14,11 +14,8 @@ import subprocess
 from launch_ros.substitutions import FindPackageShare
 def generate_launch_description():
     ld = LaunchDescription()
-    LaunchConfiguration("urdf_file",default="SingleJointSE.urdf.xacro")
-    LaunchConfiguration("conf_file",default="single_joint.yaml")
 
-
-    urdf_name_arg = DeclareLaunchArgument("urdf_file",default_value="JumpingLeg2d.urdf.xacro")
+    urdf_name_arg = DeclareLaunchArgument("urdf_file",default_value="JumpingLeg2d.xacro")
     ld.add_action(urdf_name_arg)
     conf_name_arg = DeclareLaunchArgument("conf_file",default_value="jump_leg.yaml")
     ld.add_action(conf_name_arg)
@@ -41,7 +38,7 @@ def generate_launch_description():
         package="controller_manager",
         executable="ros2_control_node",
         parameters=[{"robot_description": robot_description},controller_path],
-        
+
     )
 
     ld.add_action(control_node)

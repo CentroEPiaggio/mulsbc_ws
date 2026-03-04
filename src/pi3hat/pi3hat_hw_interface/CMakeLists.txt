@@ -15,7 +15,6 @@ find_package(moteus_pi3hat REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(tf2 REQUIRED)
-find_package(rosbag2_cpp REQUIRED)
 find_package(std_msgs REQUIRED)
 
 
@@ -114,8 +113,7 @@ install(
   LIBRARY DESTINATION lib
 )
 
-install(TARGETS
-TARGETS ${PROJECT_NAME}_node
+install(TARGETS ${PROJECT_NAME}_node
   DESTINATION lib/${PROJECT_NAME})
 # install(TARGETS
 # TARGETS ${PROJECT_NAME}_record

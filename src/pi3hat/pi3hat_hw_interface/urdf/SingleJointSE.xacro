@@ -18,28 +18,29 @@
             <param name="attitude_hz">400</param> 
         </hardware>
 
-        <joint name="PORCODIO_JOINT"> 
+        <joint name="TEST_JOINT"> 
             <param name="id">4</param>
             <param name="bus">1</param>
-            <param name="second_encoder_source">1</param>
+            <param name="second_encoder_source">0</param>
             <param name="type">motor</param>
             
-            <param name="KP">125.0</param> 
+            <param name="KP">70.0</param> 
             <param name="KD">0.6</param> 
             <param name="KI">0.0</param> 
             <param name="ilimit">0.0</param>
             <param name="iratelimit">0.0</param>
-            <param name="max_position_slip">0.0</param>
-            <param name="max_velocity_slip">0.0</param>
+            <param name="max_position_slip">0.5</param>
+            <param name="max_velocity_slip">0.3</param>
             <param name="enable_motor_temperature">0</param>
             <param name="max_pos_limit">3.14</param> 
             <param name="min_pos_limit">-3.14</param>
             <param name="max_velocity">10.0</param>
             <param name="max_effort">5.0</param>
-            <param name="actuator_trasmission">9.0</param>
+            <param name="actuator_trasmission">3.23076923</param>
             <param name="position_offset">0.0</param>
-            <param name="second_encoder_trasmission">3.23076923</param> 
-
+            <!-- <param name="second_encoder_trasmission">3.23076923</param>  -->
+            <!-- <param name="second_encoder_trasmission">2.78571428638</param>  -->
+            <param name="second_encoder_trasmission">9.0</param> 
             <param name="position_res">64</param> 
             <param name="velocity_res">64</param> 
             <param name="torque_res">64</param> 
@@ -57,7 +58,7 @@
             <param name="second_encoder_velocity_res">64</param> 
 
         </joint>
-        <joint name="PORCODIO_DIST"> 
+        <joint name="TEST_DIST"> 
             <param name="id">32</param>
             <param name="bus">5</param>
             <param name="type">power_dist</param>

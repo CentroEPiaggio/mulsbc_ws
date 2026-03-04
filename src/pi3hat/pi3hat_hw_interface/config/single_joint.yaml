@@ -28,9 +28,9 @@ joint_controller:
 forward_pos:
   ros__parameters:
     joints:
-      - "PORCODIO_JOINT"
+      - "TEST_JOINT"
     interface_name: position
 distributor_state_broadcaster:
   ros__parameters:
     distributors:
-      - "PORCODIO_DIST"
+      - "TEST_DIST"

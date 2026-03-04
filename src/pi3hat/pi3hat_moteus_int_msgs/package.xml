@@ -3,7 +3,7 @@
 <package format="3">
   <name>pi3hat_moteus_int_msgs</name>
   <version>0.0.0</version>
-  <description>TODO: Package description</description>
+  <description>Custom ROS 2 message definitions for Pi3Hat Moteus motor interface</description>
   <maintainer email="cionix90@gmail.com">jacopocioni</maintainer>
   <license>TODO: License declaration</license>
 

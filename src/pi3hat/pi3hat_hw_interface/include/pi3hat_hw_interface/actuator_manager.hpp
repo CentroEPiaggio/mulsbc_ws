@@ -231,7 +231,7 @@ namespace pi3hat_hw_interface
                 {
                     return jnt_name_;
                 };
-                u_int16_t GetActuatorId()
+                uint16_t GetActuatorId()
                 {
                     return id_;
                 };
@@ -315,7 +315,7 @@ namespace pi3hat_hw_interface
                 int se_source_;
                 CanFdFrame* cmd_frame_;
                 std::string jnt_name_;
-                u_int16_t id_,bus_;
+                uint16_t id_,bus_;
                 double max_torque_ = 0.0;
                 double position_offset_ = 0.0;
                 double actuator_transmission_ = 1.0;
@@ -392,7 +392,7 @@ namespace pi3hat_hw_interface
                 {
                     return dist_name_;
                 };
-                u_int16_t GetDistributorId()
+                uint16_t GetDistributorId()
                 {
                     return id_;
                 };
@@ -414,7 +414,7 @@ namespace pi3hat_hw_interface
                 }
                 StateStruct stt_;
                 CanFdFrame* cmd_frame_;
-                u_int16_t id_,bus_;
+                uint16_t id_,bus_;
                 std::string dist_name_;
                 std::unique_ptr<Controller> c_;
                 mjbots::power_distributor::Query::Format qf_;
