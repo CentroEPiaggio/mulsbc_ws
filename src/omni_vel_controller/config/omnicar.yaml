@@ -1,0 +1,25 @@
+omni_vel_controller:
+  ros__parameters:
+    # -- Wheel joint names --
+    # Must match the joint names in the URDF / ros2_control hardware interface.
+    # Omnicar uses the default mecanum wheel joints.
+    wheel_names:
+      - RF_WHEEL_JNT
+      - LF_WHEEL_JNT
+      - LH_WHEEL_JNT
+      - RH_WHEEL_JNT
+
+    # -- Kinematics --
+    driveshaft_y: 0.188       # [m] lateral distance from base center to wheel
+    driveshaft_x: 0.235       # [m] longitudinal distance from base center to wheel
+    mecanum_angle: 135.0       # [deg] roller angle on the mecanum wheel
+    wheel_rad: 0.05            # [m] wheel radius
+
+    # -- Communication --
+    input_frequency: 100       # [Hz] expected command frequency (deadline = 1/freq + 5 ms)
+    BestEffort_QOS: true       # use BestEffort QoS (true) or Reliable (false)
+
+    # -- Features --
+    pub_odom: false            # publish wheel odometry on ~/wheel_odom
+    forward_height_rate: false # omnicar has no legs, keep disabled
+    sim: false                 # true when running in Gazebo (reduces command interfaces)

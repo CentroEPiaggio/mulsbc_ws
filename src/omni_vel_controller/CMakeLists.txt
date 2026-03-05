@@ -16,6 +16,7 @@ find_package(pi3hat_moteus_int_msgs REQUIRED)
 find_package(std_srvs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(std_msgs REQUIRED)
 find_package(Eigen3 REQUIRED)
 
 add_library(
@@ -38,6 +39,7 @@ ament_target_dependencies(${PROJECT_NAME}
   pi3hat_moteus_int_msgs
   std_srvs
   geometry_msgs
+  std_msgs
   Eigen3
 )
 
@@ -56,6 +58,11 @@ install(
   RUNTIME DESTINATION bin
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
+)
+
+install(
+  DIRECTORY config launch
+  DESTINATION share/${PROJECT_NAME}
 )
 
 if(BUILD_TESTING)
@@ -79,7 +86,7 @@ ament_export_dependencies(
   sensor_msgs
   pi3hat_moteus_int_msgs
   std_srvs
-  
+  std_msgs
 )
 ament_export_include_directories(
   include

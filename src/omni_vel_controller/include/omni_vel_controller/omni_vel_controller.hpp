@@ -15,6 +15,7 @@
 #include "sensor_msgs/msg/joint_state.hpp"
 #include "std_srvs/srv/set_bool.hpp"
 #include "geometry_msgs/msg/twist_stamped.hpp"
+#include "std_msgs/msg/float64.hpp"
 
 #include <chrono>
 #include <mutex>
@@ -81,6 +82,7 @@ namespace omni_vel_controller
                     base_vel_[0] = msg->v_x;
                     base_vel_[1] = msg->v_y;
                     base_vel_[2] = msg->omega;
+                    height_rate_ = msg->height_rate;
                 }
 
             }
@@ -182,10 +184,12 @@ namespace omni_vel_controller
             duration<double,std::milli> deadmis_to_;
             Controller_State c_stt_ = Controller_State::INACTIVE;
             int dl_miss_count_ = 0;
-            bool odom_flag_,sim_flag_;
-            std::vector<std::string> wheels_name_ = {"RF_WHEEL_JNT","LF_WHEEL_JNT","LH_WHEEL_JNT","RH_WHEEL_JNT"};
+            bool odom_flag_,sim_flag_,forward_height_rate_;
+            std::vector<std::string> wheels_name_;
+            double height_rate_ = 0.0;
             geometry_msgs::msg::TwistStamped odom_msg_;
-           
+            rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr height_rate_pub_;
+
             rclcpp::Service<TransactionService>::SharedPtr homing_serv_,emergency_serv_;
     };
 };

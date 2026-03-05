@@ -20,16 +20,19 @@ namespace omni_vel_controller
     {
         try
         {
-            auto_declare<int>("input_frequency",100);   
-            auto_declare<double>("driveshaft_y",0.188);
-            auto_declare<double>("driveshaft_x",0.235);
-            auto_declare<double>("mecanum_angle",45.0);
-        	auto_declare<double>("wheel_rad",0.05);
-            auto_declare<bool>("BestEffort_QOS",true);
-            auto_declare<bool>("DeadMiss_event",false);
-            auto_declare<bool>("call_dm",false);
-            auto_declare<bool>("pub_odom",false);
-            auto_declare<bool>("sim",false);
+            auto_declare<int>("input_frequency", 100);   
+            auto_declare<double>("driveshaft_y", 0.188);
+            auto_declare<double>("driveshaft_x", 0.235);
+            auto_declare<double>("mecanum_angle", 45.0);
+        	auto_declare<double>("wheel_rad", 0.05);
+            auto_declare<bool>("BestEffort_QOS", true);
+            auto_declare<bool>("DeadMiss_event", false);
+            auto_declare<bool>("call_dm", false);
+            auto_declare<bool>("pub_odom", false);
+            auto_declare<bool>("forward_height_rate", false);
+            auto_declare<bool>("sim", false);
+            auto_declare<std::vector<std::string>>("wheel_names",
+                {"RF_WHEEL_JNT","LF_WHEEL_JNT","LH_WHEEL_JNT","RH_WHEEL_JNT"});
         }
          catch(const std::exception & e)
         {
@@ -46,11 +49,13 @@ namespace omni_vel_controller
         double ds_y,ds_x,ma,wr;
         rclcpp::QoS out_qos(10),in_qos(10);
         // get parameters
+        wheels_name_ = get_node()->get_parameter("wheel_names").as_string_array();
         ds_y = get_node()->get_parameter("driveshaft_y").as_double();
         ds_x = get_node()->get_parameter("driveshaft_x").as_double();
         ma = get_node()->get_parameter("mecanum_angle").as_double() *(M_PI/180.0);
         wr = get_node()->get_parameter("wheel_rad").as_double();
         odom_flag_ = get_node()->get_parameter("pub_odom").as_bool();
+        forward_height_rate_ = get_node()->get_parameter("forward_height_rate").as_bool();
         sim_flag_ = get_node()->get_parameter("sim").as_bool();
         milliseconds dur{get_node()->get_parameter("input_frequency").as_int() + 5};
         deadmis_to_ = dur;
@@ -133,6 +138,8 @@ namespace omni_vel_controller
         joints_cmd_pub_ = get_node()->create_publisher<SttMsg>("~/joints_reference",out_qos);
         if(odom_flag_)
             odom_pub_ = get_node()->create_publisher<geometry_msgs::msg::TwistStamped>("~/wheel_odom",10);
+        if(forward_height_rate_)
+            height_rate_pub_ = get_node()->create_publisher<std_msgs::msg::Float64>("~/height_rate",10);
 
         // create servicies 
 
@@ -223,7 +230,7 @@ namespace omni_vel_controller
         switch (c_stt_)
         {
         case Controller_State::INACTIVE:
-            
+
             for(int i = 0;i < WHEELS; i++)
             {
                 joint_cmd_.position[i] = 0.0;
@@ -232,6 +239,7 @@ namespace omni_vel_controller
                 joint_cmd_.kp_scale[i] = 0.0;
                 joint_cmd_.kd_scale[i] = 0.0;
             }
+            height_rate_ = 0.0;
 
             break;
         case Controller_State::ACTIVE:
@@ -245,6 +253,12 @@ namespace omni_vel_controller
         }
 
         set_cmd2jnt();
+        if(forward_height_rate_)
+        {
+            std_msgs::msg::Float64 hr_msg;
+            hr_msg.data = height_rate_;
+            height_rate_pub_->publish(hr_msg);
+        }
         return controller_interface::return_type::OK;
     }
     
