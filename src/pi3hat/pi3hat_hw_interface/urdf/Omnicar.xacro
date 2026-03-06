@@ -17,9 +17,9 @@
 
             <param name="attitude_hz">400</param>
 
-            <param name="temp_warning_threshold">80</param>
-            <param name="temp_critical_threshold">100</param>
-            <param name="battery_min_voltage">18.0</param>
+            <param name="temp_warning_threshold">50</param>
+            <param name="temp_critical_threshold">57</param>
+            <param name="battery_min_voltage">24.0</param>
             <param name="shutdown_delay">3.0</param>
         </hardware>
 
