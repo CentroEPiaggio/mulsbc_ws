@@ -77,6 +77,7 @@ public:
 private:
     // ─── Configuration ──────────────────────────────────────────────────
     std::vector<std::string> wheel_joints_;
+    std::vector<std::vector<std::string>> wheel_groups_;  // IK index → joint names
     std::vector<std::string> leg_joints_;
     std::vector<std::string> all_motor_joints_;  // wheel_joints_ + leg_joints_
     std::vector<std::string> distributor_names_;

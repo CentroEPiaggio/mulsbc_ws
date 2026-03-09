@@ -2,6 +2,7 @@
 #include "omni_controller/wheel_ik.hpp"
 
 #include <cmath>
+#include <map>
 
 using namespace omni_controller;
 
@@ -173,6 +174,65 @@ TEST_F(DifferentialIKTest, WrongWheelCountThrows)
     WheelIKConfig config;
     std::vector<std::string> names = {"A", "B", "C"};
     EXPECT_THROW(bad_ik.configure(config, names), std::invalid_argument);
+}
+
+TEST_F(DifferentialIKTest, SingleWheelPerSideWorks)
+{
+    // DifferentialIK always takes exactly 2 logical wheels.
+    // With multi-wheel-per-side, the controller passes one name per group.
+    DifferentialIK fresh;
+    WheelIKConfig config;
+    config.wheel_rad = 0.1;
+    config.track_width = 0.5;
+    std::vector<std::string> names = {"left_front", "right_front"};
+    EXPECT_NO_THROW(fresh.configure(config, names));
+
+    auto vels = fresh.inverse(1.0, 0.0, 0.0);
+    ASSERT_EQ(vels.size(), 2u);
+    EXPECT_NEAR(vels[0], 10.0, 1e-10);
+    EXPECT_NEAR(vels[1], 10.0, 1e-10);
+}
+
+TEST(DifferentialMultiWheelConcept, IKOutputFansOutToGroups)
+{
+    // Demonstrates the multi-wheel pattern:
+    // IK computes 2 velocities, controller duplicates to N wheels per side.
+    DifferentialIK ik;
+    WheelIKConfig config;
+    config.wheel_rad = 0.1;
+    config.track_width = 0.5;
+    // Controller passes one representative name per group
+    ik.configure(config, {"LEFT", "RIGHT"});
+
+    double vx = 0.5, omega = 1.0;
+    auto vels = ik.inverse(vx, 0.0, omega);
+
+    // Simulate 2 wheels per side: each gets the same velocity
+    std::vector<std::vector<std::string>> groups = {
+        {"left_front", "left_rear"},
+        {"right_front", "right_rear"}
+    };
+
+    // Fan out: each joint in group g gets vels[g]
+    std::map<std::string, double> joint_cmds;
+    for (size_t g = 0; g < groups.size(); g++)
+        for (const auto & jnt : groups[g])
+            joint_cmds[jnt] = vels[g];
+
+    // All left wheels get the same velocity
+    EXPECT_DOUBLE_EQ(joint_cmds["left_front"], joint_cmds["left_rear"]);
+    // All right wheels get the same velocity
+    EXPECT_DOUBLE_EQ(joint_cmds["right_front"], joint_cmds["right_rear"]);
+    // Left != right (since omega != 0)
+    EXPECT_NE(joint_cmds["left_front"], joint_cmds["right_front"]);
+
+    // Forward kinematics: average each group, recover twist
+    double avg_left = (joint_cmds["left_front"] + joint_cmds["left_rear"]) / 2.0;
+    double avg_right = (joint_cmds["right_front"] + joint_cmds["right_rear"]) / 2.0;
+    auto recovered = ik.forward({avg_left, avg_right});
+
+    EXPECT_NEAR(recovered[0], vx, 1e-10);
+    EXPECT_NEAR(recovered[2], omega, 1e-10);
 }
 
 // ─── Factory Tests ──────────────────────────────────────────────────────────

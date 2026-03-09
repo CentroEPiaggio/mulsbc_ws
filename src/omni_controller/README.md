@@ -13,7 +13,7 @@ Unified ros2_control controller for the Mulinex omnidirectional robot. Replaces 
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `wheel_joints.<POS>` | `string` | `""` | Wheel joint name per position. Mecanum: `LF`, `LH`, `RF`, `RH`. Differential: `LEFT`, `RIGHT`. |
+| `wheel_joints.<POS>` | `string` or `string[]` | `""` / `[]` | Wheel joint name(s) per position. Mecanum: `LF`, `LH`, `RF`, `RH` (single string each). Differential: `LEFT`, `RIGHT` (string array each — supports multiple wheels per side for skid-steer). |
 | `leg_joints` | `string[]` | `[]` | Leg joint names (must match URDF) |
 | `distributor_names` | `string[]` | `[]` | Power distributor names |
 | `second_encoder_joints` | `string[]` | `[]` | Joints with secondary encoders |
@@ -66,9 +66,22 @@ on_activate()
 ## Wheel IK Types
 
 - **`mecanum`**: 4-wheel mecanum inverse kinematics (LF, LH, RF, RH). Requires `wheel_joints.{LF,LH,RF,RH}`, `driveshaft_x`, `driveshaft_y`, `mecanum_angle`, `wheel_rad`.
-- **`differential`**: 2-wheel differential drive (LEFT, RIGHT). Requires `wheel_joints.{LEFT,RIGHT}`, `track_width`, `wheel_rad`.
+- **`differential`**: Differential drive with 1 or more wheels per side. Requires `wheel_joints.{LEFT,RIGHT}` (string arrays), `track_width`, `wheel_rad`. All wheels on the same side receive the same velocity. Odometry averages wheel velocities per side.
 - **`none`**: No IK. Wheel joints still get zero commands when INACTIVE but receive no IK output when ACTIVE (useful for direct joint control via `leg_joints`).
 
 ## Example Config
 
 See [`config/omnicar.yaml`](config/omnicar.yaml) for a complete Omnicar configuration.
+
+### Differential (skid-steer) example
+
+```yaml
+omni_controller:
+  ros__parameters:
+    feet_type: differential
+    wheel_joints:
+      LEFT:  [left_front_jnt, left_rear_jnt]
+      RIGHT: [right_front_jnt, right_rear_jnt]
+    track_width: 0.4
+    wheel_rad: 0.05
+```

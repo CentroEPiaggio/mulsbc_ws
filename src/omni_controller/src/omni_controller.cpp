@@ -21,14 +21,15 @@ CallbackReturn OmniController::on_init()
 {
     try
     {
-        // Wheel joint positions (map: position_key → joint_name)
-        // Mecanum: LF, LH, RF, RH.  Differential: LEFT, RIGHT.
+        // Wheel joint positions (map: position_key → joint name(s))
+        // Mecanum: LF, LH, RF, RH (single string each)
+        // Differential: LEFT, RIGHT (string array each — supports multiple wheels per side)
         auto_declare<std::string>("wheel_joints.LF", "");
         auto_declare<std::string>("wheel_joints.LH", "");
         auto_declare<std::string>("wheel_joints.RF", "");
         auto_declare<std::string>("wheel_joints.RH", "");
-        auto_declare<std::string>("wheel_joints.LEFT", "");
-        auto_declare<std::string>("wheel_joints.RIGHT", "");
+        auto_declare<std::vector<std::string>>("wheel_joints.LEFT", std::vector<std::string>());
+        auto_declare<std::vector<std::string>>("wheel_joints.RIGHT", std::vector<std::string>());
 
         // Other joint lists
         auto_declare<std::vector<std::string>>("leg_joints", std::vector<std::string>());
@@ -67,8 +68,9 @@ CallbackReturn OmniController::on_configure(const rclcpp_lifecycle::State &)
     // ── Read parameters ─────────────────────────────────────────────────
     std::string feet_type = get_node()->get_parameter("feet_type").as_string();
 
-    // Build wheel_joints_ from position-keyed map (order is fixed per IK type)
+    // Build wheel_joints_ (flat list) and wheel_groups_ (IK index → joints)
     wheel_joints_.clear();
+    wheel_groups_.clear();
     if (feet_type == "mecanum")
     {
         const std::vector<std::string> positions = {"LF", "LH", "RF", "RH"};
@@ -82,6 +84,7 @@ CallbackReturn OmniController::on_configure(const rclcpp_lifecycle::State &)
                 return CallbackReturn::ERROR;
             }
             wheel_joints_.push_back(jnt);
+            wheel_groups_.push_back({jnt});
         }
     }
     else if (feet_type == "differential")
@@ -89,14 +92,16 @@ CallbackReturn OmniController::on_configure(const rclcpp_lifecycle::State &)
         const std::vector<std::string> positions = {"LEFT", "RIGHT"};
         for (const auto & pos : positions)
         {
-            std::string jnt = get_node()->get_parameter("wheel_joints." + pos).as_string();
-            if (jnt.empty())
+            auto joints = get_node()->get_parameter("wheel_joints." + pos).as_string_array();
+            if (joints.empty())
             {
                 RCLCPP_ERROR(get_node()->get_logger(),
-                             "wheel_joints.%s is required for feet_type='differential'", pos.c_str());
+                             "wheel_joints.%s requires at least one joint for feet_type='differential'",
+                             pos.c_str());
                 return CallbackReturn::ERROR;
             }
-            wheel_joints_.push_back(jnt);
+            wheel_groups_.push_back(joints);
+            wheel_joints_.insert(wheel_joints_.end(), joints.begin(), joints.end());
         }
     }
 
@@ -156,7 +161,12 @@ CallbackReturn OmniController::on_configure(const rclcpp_lifecycle::State &)
 
             try
             {
-                wheel_ik_->configure(ik_config, wheel_joints_);
+                // For differential with multi-wheel groups, pass one name per group
+                // (IK only cares about count, not the actual names)
+                std::vector<std::string> ik_names;
+                for (const auto & group : wheel_groups_)
+                    ik_names.push_back(group.front());
+                wheel_ik_->configure(ik_config, ik_names);
             }
             catch (const std::exception & e)
             {
@@ -558,11 +568,14 @@ void OmniController::publish_distributor_states(const rclcpp::Time & time)
 
 void OmniController::publish_odometry(const rclcpp::Time & time)
 {
-    // Read current wheel velocities
-    std::vector<double> wheel_vels(wheel_joints_.size());
-    for (size_t i = 0; i < wheel_joints_.size(); i++)
+    // Build one velocity per IK slot by averaging all wheels in each group
+    std::vector<double> wheel_vels(wheel_groups_.size());
+    for (size_t g = 0; g < wheel_groups_.size(); g++)
     {
-        wheel_vels[i] = get_state(wheel_joints_[i] + "/" + hardware_interface::HW_IF_VELOCITY);
+        double sum = 0.0;
+        for (const auto & jnt : wheel_groups_[g])
+            sum += get_state(jnt + "/" + hardware_interface::HW_IF_VELOCITY);
+        wheel_vels[g] = sum / static_cast<double>(wheel_groups_[g].size());
     }
 
     auto odom = wheel_ik_->forward(wheel_vels);
@@ -584,16 +597,18 @@ void OmniController::write_wheel_commands()
 {
     auto wheel_vels = wheel_ik_->inverse(base_vel_[0], base_vel_[1], base_vel_[2]);
 
-    for (size_t i = 0; i < wheel_joints_.size(); i++)
+    for (size_t g = 0; g < wheel_groups_.size(); g++)
     {
-        const auto & jnt = wheel_joints_[i];
-        set_command(jnt + "/" + hardware_interface::HW_IF_VELOCITY, wheel_vels[i]);
-        if (!sim_flag_)
+        for (const auto & jnt : wheel_groups_[g])
         {
-            set_command(jnt + "/" + hardware_interface::HW_IF_POSITION, std::nan("1"));
-            set_command(jnt + "/" + hardware_interface::HW_IF_EFFORT, 0.0);
-            set_command(jnt + "/" + hw_if::KP_SCALE, 0.0);
-            set_command(jnt + "/" + hw_if::KD_SCALE, 1.0);
+            set_command(jnt + "/" + hardware_interface::HW_IF_VELOCITY, wheel_vels[g]);
+            if (!sim_flag_)
+            {
+                set_command(jnt + "/" + hardware_interface::HW_IF_POSITION, std::nan("1"));
+                set_command(jnt + "/" + hardware_interface::HW_IF_EFFORT, 0.0);
+                set_command(jnt + "/" + hw_if::KP_SCALE, 0.0);
+                set_command(jnt + "/" + hw_if::KD_SCALE, 1.0);
+            }
         }
     }
 }
