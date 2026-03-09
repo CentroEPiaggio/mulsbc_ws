@@ -26,32 +26,33 @@ void MecanumIK::configure(const WheelIKConfig & config,
     double rot_term = ds_x - ds_y * cot_ma;
 
     // Inverse kinematics: [vx, vy, omega] → wheel velocities
-    // Wheel order: RF, LF, LH, RH (matching existing omni_vel_controller)
-    base2wheel_[0][0] =  1.0 / wr;
+    // Wheel order: LF, LH, RF, RH
+    base2wheel_[0][0] = -1.0 / wr;   // LF
     base2wheel_[0][1] =  1.0 / wr;
     base2wheel_[0][2] = -rot_term / wr;
 
-    base2wheel_[1][0] = -1.0 / wr;
-    base2wheel_[1][1] =  1.0 / wr;
+    base2wheel_[1][0] = -1.0 / wr;   // LH
+    base2wheel_[1][1] = -1.0 / wr;
     base2wheel_[1][2] = -rot_term / wr;
 
-    base2wheel_[2][0] = -1.0 / wr;
-    base2wheel_[2][1] = -1.0 / wr;
+    base2wheel_[2][0] =  1.0 / wr;   // RF
+    base2wheel_[2][1] =  1.0 / wr;
     base2wheel_[2][2] = -rot_term / wr;
 
-    base2wheel_[3][0] =  1.0 / wr;
+    base2wheel_[3][0] =  1.0 / wr;   // RH
     base2wheel_[3][1] = -1.0 / wr;
     base2wheel_[3][2] = -rot_term / wr;
 
     // Forward kinematics: wheel velocities → [vx, vy, omega]
-    odom_[0][0] =  wr / 4.0;
+    //                      LF       LH       RF       RH
+    odom_[0][0] = -wr / 4.0;
     odom_[0][1] = -wr / 4.0;
-    odom_[0][2] = -wr / 4.0;
+    odom_[0][2] =  wr / 4.0;
     odom_[0][3] =  wr / 4.0;
 
     odom_[1][0] =  wr / 4.0;
-    odom_[1][1] =  wr / 4.0;
-    odom_[1][2] = -wr / 4.0;
+    odom_[1][1] = -wr / 4.0;
+    odom_[1][2] =  wr / 4.0;
     odom_[1][3] = -wr / 4.0;
 
     odom_[2][0] = -wr / (4.0 * rot_term);

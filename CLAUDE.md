@@ -10,21 +10,20 @@ This workspace is separate from the parent `mulinex_ws` Docker workspace (which 
 
 ## Docker (ARM64 testing on x86 host)
 
-Workspace is bind-mounted at `/ws/` inside the container. All build/test commands must run inside it.
+Use docker to build, run, and test the workspace on an x86 machine.
+All build/test commands must run inside it.
+Workspace is bind-mounted at `/ws/` inside the container.
 
 ```bash
 bash docker/build.bash                              # build image (first time / Dockerfile changes)
-docker compose -f docker/docker-compose.yaml up -d  # start container
-docker exec -it mulsbc-arm64-dev bash               # enter container
+docker compose -f docker/docker-compose.yaml up -d  # start container (could be already running)
+docker exec mulsbc-arm64-dev bash                   # enter container
 docker compose -f docker/docker-compose.yaml down   # stop container
 ```
 
 ## Build Commands
 
 ```bash
-# Source ROS 2
-source /opt/ros/$ROS_DISTRO$/setup.bash
-
 # Build entire workspace
 colcon build --symlink-install
 
@@ -119,8 +118,5 @@ Beyond standard `position`/`velocity`/`effort`, the hardware interface exposes c
 
 ## Key Details
 
-- **ROS_DOMAIN_ID**: Must match between robot and operator PC (parent workspace uses 10)
-- **RMW_IMPLEMENTATION**: Use `rmw_cyclonedds_cpp`.
-- **CPU affinity**: Hardware interface pins to CPU 1 for real-time determinism
 - **CAN-FD**: 64-byte frames with configurable bit-resolution per field
 - Pi3Hat r4.4 or newer required

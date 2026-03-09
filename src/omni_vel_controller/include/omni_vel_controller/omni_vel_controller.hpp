@@ -4,7 +4,6 @@
 #include <string>
 #include <vector>
 #include <array>
-#include <Eigen/Core>
 #include "controller_interface/controller_interface.hpp"
 #include "rclcpp/subscription.hpp"
 #include "rclcpp_lifecycle/node_interfaces/lifecycle_node_interface.hpp"
@@ -98,9 +97,9 @@ namespace omni_vel_controller
                     if(!sim_flag_)
                     {
                         command_interfaces_[int_n * i + 1].set_value(joint_cmd_.position[i]);
-                        command_interfaces_[int_n * i + 2].set_value(0.0);
-                        command_interfaces_[int_n * i + 3].set_value(0.0);
-                        command_interfaces_[int_n * i + 4].set_value(1.0);
+                        command_interfaces_[int_n * i + 2].set_value(joint_cmd_.effort[i]);
+                        command_interfaces_[int_n * i + 3].set_value(joint_cmd_.kp_scale[i]);
+                        command_interfaces_[int_n * i + 4].set_value(joint_cmd_.kd_scale[i]);
                     }
                 }
             }
@@ -121,7 +120,7 @@ namespace omni_vel_controller
                     {
                         joint_cmd_.position[i] = std::nan("1");
                         joint_cmd_.effort[i] = 0.0;
-                        joint_cmd_.kp_scale[i] = 1.0;
+                        joint_cmd_.kp_scale[i] = 0.0;
                         joint_cmd_.kd_scale[i] = 1.0;
                     }
                 }
@@ -170,7 +169,6 @@ namespace omni_vel_controller
                 }
 
             }
-            rclcpp::Publisher<SttMsg>::SharedPtr joints_cmd_pub_;
             rclcpp::Publisher<geometry_msgs::msg::TwistStamped>::SharedPtr odom_pub_;
             rclcpp::Subscription<CmdMsg>::SharedPtr cmd_sub_;
             double base2Wheel_matrix_[4][3];
@@ -179,7 +177,6 @@ namespace omni_vel_controller
             double wheel_vel_[4];
             double odom_vel_[3] = {0.0,0.0,0.0};
             SttMsg joint_cmd_;
-            std::string logger_name_;
             std::mutex var_mutex_;
             duration<double,std::milli> deadmis_to_;
             Controller_State c_stt_ = Controller_State::INACTIVE;

@@ -18,7 +18,7 @@ protected:
         config.driveshaft_x = 0.235;
         config.driveshaft_y = 0.188;
         config.mecanum_angle = 135.0;
-        std::vector<std::string> names = {"RF", "LF", "LH", "RH"};
+        std::vector<std::string> names = {"LF", "LH", "RF", "RH"};
         ik->configure(config, names);
     }
     std::unique_ptr<MecanumIK> ik;
@@ -49,10 +49,10 @@ TEST_F(MecanumIKTest, ForwardXOnly)
     for (auto v : wheel_vels)
         EXPECT_NEAR(std::abs(v), mag, 1e-10);
 
-    // RF (+) and RH (+), LF (-) and LH (-)
-    EXPECT_GT(wheel_vels[0], 0.0);  // RF: +1/wr * vx
-    EXPECT_LT(wheel_vels[1], 0.0);  // LF: -1/wr * vx
-    EXPECT_LT(wheel_vels[2], 0.0);  // LH: -1/wr * vx
+    // LF (-) and LH (-), RF (+) and RH (+)
+    EXPECT_LT(wheel_vels[0], 0.0);  // LF: -1/wr * vx
+    EXPECT_LT(wheel_vels[1], 0.0);  // LH: -1/wr * vx
+    EXPECT_GT(wheel_vels[2], 0.0);  // RF: +1/wr * vx
     EXPECT_GT(wheel_vels[3], 0.0);  // RH: +1/wr * vx
 }
 

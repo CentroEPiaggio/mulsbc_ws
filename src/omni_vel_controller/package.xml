@@ -21,9 +21,6 @@
     <depend>geometry_msgs</depend>
     <depend>std_msgs</depend>
 
-    <build_depend>eigen</build_depend>
-    <build_export_depend>eigen</build_export_depend> <!-- If your package uses Eigen3 in public headers, then also add these tags so downstream packages also depend on this package and Eigen3. -->
-
     <export>
         <build_type>ament_cmake</build_type>
     </export>

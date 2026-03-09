@@ -64,15 +64,18 @@ imu_sensor:
     
 omni_controller:
   ros__parameters:
-    homing_duration: 5.0
-    input_frequency: 100
+    wheel_names:
+      - RF_WHEEL_JNT
+      - LF_WHEEL_JNT
+      - LH_WHEEL_JNT
+      - RH_WHEEL_JNT
+    driveshaft_y: 0.188
+    driveshaft_x: 0.235
     mecanum_angle: 135.0
-    init_x_displacement: 0.0 #[m]
-    init_height: -0.30
-    max_height: -0.5
-    min_height: -0.10
-    wheel_rad: 0.05  #0.028 for trucks, 0.05 for omniwheels
-    feet_type: 2  
-    #kp_scale_default: 1  # solo per le ruote
-    #kd_scale_default: 0.95  # solo per le ruote
+    wheel_rad: 0.05
+    input_frequency: 100
+    BestEffort_QOS: true
+    pub_odom: false
+    forward_height_rate: false
+    sim: false
 

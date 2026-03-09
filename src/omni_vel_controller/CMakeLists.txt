@@ -17,8 +17,6 @@ find_package(std_srvs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
-find_package(Eigen3 REQUIRED)
-
 add_library(
   ${PROJECT_NAME}
   SHARED src/omni_vel_controller.cpp
@@ -26,7 +24,6 @@ add_library(
 target_include_directories(
   ${PROJECT_NAME} PRIVATE include
 )
-target_link_libraries(${PROJECT_NAME} Eigen3::Eigen)
 
 ament_target_dependencies(${PROJECT_NAME}
   builtin_interfaces

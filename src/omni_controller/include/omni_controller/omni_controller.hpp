@@ -1,6 +1,7 @@
 #ifndef OMNI_CONTROLLER_HPP
 #define OMNI_CONTROLLER_HPP
 
+#include <atomic>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -94,7 +95,7 @@ private:
 
     // ─── State machine ──────────────────────────────────────────────────
     ControllerState c_stt_ = ControllerState::INACTIVE;
-    int dl_miss_count_ = 0;
+    std::atomic<int> dl_miss_count_{0};
 
     // ─── Buffered commands (protected by mutex) ─────────────────────────
     std::mutex var_mutex_;

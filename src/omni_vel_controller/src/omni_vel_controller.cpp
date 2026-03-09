@@ -26,8 +26,6 @@ namespace omni_vel_controller
             auto_declare<double>("mecanum_angle", 45.0);
         	auto_declare<double>("wheel_rad", 0.05);
             auto_declare<bool>("BestEffort_QOS", true);
-            auto_declare<bool>("DeadMiss_event", false);
-            auto_declare<bool>("call_dm", false);
             auto_declare<bool>("pub_odom", false);
             auto_declare<bool>("forward_height_rate", false);
             auto_declare<bool>("sim", false);
@@ -36,7 +34,7 @@ namespace omni_vel_controller
         }
          catch(const std::exception & e)
         {
-            RCLCPP_ERROR(rclcpp::get_logger(logger_name_),"Exception thrown during declaration of joints name with message: %s", e.what());
+            RCLCPP_ERROR(rclcpp::get_logger("omni_vel_controller"),"Exception thrown during declaration of joints name with message: %s", e.what());
             return CallbackReturn::ERROR;
         }
         // add physics omni_wheel physics parameter autodeclare
@@ -135,7 +133,6 @@ namespace omni_vel_controller
             std::bind(
                 &Omni_Vel_Controller::cmd_callback,this,std::placeholders::_1),sub_opt);
 
-        joints_cmd_pub_ = get_node()->create_publisher<SttMsg>("~/joints_reference",out_qos);
         if(odom_flag_)
             odom_pub_ = get_node()->create_publisher<geometry_msgs::msg::TwistStamped>("~/wheel_odom",10);
         if(forward_height_rate_)
@@ -237,7 +234,7 @@ namespace omni_vel_controller
                 joint_cmd_.velocity[i] = 0.0;
                 joint_cmd_.effort[i] = 0.0;
                 joint_cmd_.kp_scale[i] = 0.0;
-                joint_cmd_.kd_scale[i] = 0.0;
+                joint_cmd_.kd_scale[i] = 1.0;
             }
             height_rate_ = 0.0;
 

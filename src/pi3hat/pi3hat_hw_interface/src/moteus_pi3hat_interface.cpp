@@ -522,9 +522,6 @@ namespace pi3hat_hw_interface
                 // RCLCPP_WARN(rclcpp::get_logger(LOGGER_NAME), "send_data");
                 for(auto i : actuator_index_)
                     actuators_[i]->MakeCommand();
-                    // RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),"Command for actuator %d %d",
-                    //     command_frames_[i].expected_reply_size ,command_frames_[i].reply_required
-                    // );
                 for(auto i : distributor_index_)
                     distributors_[i]->MakeQuery();
                 pi3hat_transport_->Cycle(

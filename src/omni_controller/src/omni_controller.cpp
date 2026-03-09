@@ -21,8 +21,16 @@ CallbackReturn OmniController::on_init()
 {
     try
     {
-        // Joint lists
-        auto_declare<std::vector<std::string>>("wheel_joints", std::vector<std::string>());
+        // Wheel joint positions (map: position_key → joint_name)
+        // Mecanum: LF, LH, RF, RH.  Differential: LEFT, RIGHT.
+        auto_declare<std::string>("wheel_joints.LF", "");
+        auto_declare<std::string>("wheel_joints.LH", "");
+        auto_declare<std::string>("wheel_joints.RF", "");
+        auto_declare<std::string>("wheel_joints.RH", "");
+        auto_declare<std::string>("wheel_joints.LEFT", "");
+        auto_declare<std::string>("wheel_joints.RIGHT", "");
+
+        // Other joint lists
         auto_declare<std::vector<std::string>>("leg_joints", std::vector<std::string>());
         auto_declare<std::vector<std::string>>("distributor_names", std::vector<std::string>());
         auto_declare<std::vector<std::string>>("second_encoder_joints", std::vector<std::string>());
@@ -57,12 +65,44 @@ CallbackReturn OmniController::on_init()
 CallbackReturn OmniController::on_configure(const rclcpp_lifecycle::State &)
 {
     // ── Read parameters ─────────────────────────────────────────────────
-    wheel_joints_          = get_node()->get_parameter("wheel_joints").as_string_array();
+    std::string feet_type = get_node()->get_parameter("feet_type").as_string();
+
+    // Build wheel_joints_ from position-keyed map (order is fixed per IK type)
+    wheel_joints_.clear();
+    if (feet_type == "mecanum")
+    {
+        const std::vector<std::string> positions = {"LF", "LH", "RF", "RH"};
+        for (const auto & pos : positions)
+        {
+            std::string jnt = get_node()->get_parameter("wheel_joints." + pos).as_string();
+            if (jnt.empty())
+            {
+                RCLCPP_ERROR(get_node()->get_logger(),
+                             "wheel_joints.%s is required for feet_type='mecanum'", pos.c_str());
+                return CallbackReturn::ERROR;
+            }
+            wheel_joints_.push_back(jnt);
+        }
+    }
+    else if (feet_type == "differential")
+    {
+        const std::vector<std::string> positions = {"LEFT", "RIGHT"};
+        for (const auto & pos : positions)
+        {
+            std::string jnt = get_node()->get_parameter("wheel_joints." + pos).as_string();
+            if (jnt.empty())
+            {
+                RCLCPP_ERROR(get_node()->get_logger(),
+                             "wheel_joints.%s is required for feet_type='differential'", pos.c_str());
+                return CallbackReturn::ERROR;
+            }
+            wheel_joints_.push_back(jnt);
+        }
+    }
+
     leg_joints_            = get_node()->get_parameter("leg_joints").as_string_array();
     distributor_names_     = get_node()->get_parameter("distributor_names").as_string_array();
     second_encoder_joints_ = get_node()->get_parameter("second_encoder_joints").as_string_array();
-
-    std::string feet_type = get_node()->get_parameter("feet_type").as_string();
     sim_flag_        = get_node()->get_parameter("sim").as_bool();
     pub_odom_        = get_node()->get_parameter("pub_odom").as_bool();
     pub_performance_ = get_node()->get_parameter("pub_performance").as_bool();
@@ -583,7 +623,7 @@ void OmniController::zero_all_commands()
             set_command(jnt + "/" + hardware_interface::HW_IF_POSITION, 0.0);
             set_command(jnt + "/" + hardware_interface::HW_IF_EFFORT, 0.0);
             set_command(jnt + "/" + hw_if::KP_SCALE, 0.0);
-            set_command(jnt + "/" + hw_if::KD_SCALE, 0.0);
+            set_command(jnt + "/" + hw_if::KD_SCALE, 1.0);
         }
     }
 }
