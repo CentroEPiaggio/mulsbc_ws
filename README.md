@@ -2,6 +2,12 @@
 
 Workspace for ROS 2 packages running on the Mulinex robot's on-board SBC (Raspberry Pi 4 + MJBots Pi3Hat).
 
+## Docker
+
+The docker image is for ARM64 development on x86 hosts via QEMU emulation.
+
+Build, start, enter, and stop the container with `make build`, `make start`, `make enter`, and `make stop`, respectively.
+
 ## Pi3hat Robotic Systems
 
 [Pi3hat Robotic Systems](src/pi3hat/README.md)

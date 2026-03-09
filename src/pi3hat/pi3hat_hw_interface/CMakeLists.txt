@@ -45,11 +45,11 @@ ament_target_dependencies(
   rclcpp
   rclcpp_lifecycle
   moteus_pi3hat
-  Eigen3
   tf2_ros
   tf2
   std_msgs
 )
+target_link_libraries(${PROJECT_NAME} Eigen3::Eigen)
 
 ament_target_dependencies(
   ${PROJECT_NAME}_node

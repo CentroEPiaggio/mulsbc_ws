@@ -25,8 +25,8 @@ add_library(
 )
 target_include_directories(
   ${PROJECT_NAME} PRIVATE include
-  ${EIGEN3_INCLUDE_DIR}
 )
+target_link_libraries(${PROJECT_NAME} Eigen3::Eigen)
 
 ament_target_dependencies(${PROJECT_NAME}
   builtin_interfaces
@@ -40,7 +40,6 @@ ament_target_dependencies(${PROJECT_NAME}
   std_srvs
   geometry_msgs
   std_msgs
-  Eigen3
 )
 
 pluginlib_export_plugin_description_file(controller_interface omni_vel_controller.xml)
