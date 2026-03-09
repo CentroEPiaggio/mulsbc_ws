@@ -8,6 +8,17 @@ ROS 2 Humble workspace for the **Mulinex** omnidirectional robot's on-board SBC 
 
 This workspace is separate from the parent `mulinex_ws` Docker workspace (which targets the Intel NUC for development). This code runs natively on the Raspberry Pi.
 
+## Docker (ARM64 testing on x86 host)
+
+Workspace is bind-mounted at `/ws/` inside the container. All build/test commands must run inside it.
+
+```bash
+bash docker/build.bash                              # build image (first time / Dockerfile changes)
+docker compose -f docker/docker-compose.yaml up -d  # start container
+docker exec -it mulsbc-arm64-dev bash               # enter container
+docker compose -f docker/docker-compose.yaml down   # stop container
+```
+
 ## Build Commands
 
 ```bash

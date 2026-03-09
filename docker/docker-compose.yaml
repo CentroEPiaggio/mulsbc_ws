@@ -1,0 +1,18 @@
+services:
+  mulsbc-arm64-dev:
+    image: mulsbc-arm64-test:humble
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      platforms:
+        - linux/arm64
+    container_name: mulsbc-arm64-dev
+    platform: linux/arm64
+    stdin_open: true
+    tty: true
+    environment:
+      - ROS_DOMAIN_ID=10
+      - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+      - MAKEFLAGS=-j1
+    volumes:
+      - ../:/ws/
