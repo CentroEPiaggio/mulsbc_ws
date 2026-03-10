@@ -96,6 +96,7 @@ private:
     bool has_legs_ = false;
     bool has_distributors_ = false;
     bool has_homing_ = false;
+    bool homing_completed_ = false;
     bool sim_flag_ = false;
     bool pub_odom_ = false;
     bool pub_performance_ = true;

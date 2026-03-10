@@ -530,6 +530,13 @@ void OmniController::activate_service_cb(
     std::lock_guard<std::mutex> lg(var_mutex_);
     if (c_stt_ == ControllerState::INACTIVE && req->data)
     {
+        if (has_legs_ && !homing_completed_)
+        {
+            res->success = false;
+            res->message = "Homing required before activation";
+            RCLCPP_WARN(get_node()->get_logger(), "Activate rejected: homing required before activation");
+            return;
+        }
         c_stt_ = ControllerState::ACTIVE;
         res->success = true;
         res->message = "Active mode activated";
@@ -798,6 +805,7 @@ void OmniController::update_homing(const rclcpp::Time & time)
                 leg_kp_cmd_[jnt]  = 1.0;
                 leg_kd_cmd_[jnt]  = 1.0;
             }
+            homing_completed_ = true;
             c_stt_ = ControllerState::INACTIVE;
             RCLCPP_INFO(get_node()->get_logger(), "Homing complete, returning to INACTIVE");
         }
