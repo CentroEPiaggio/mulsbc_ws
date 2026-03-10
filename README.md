@@ -20,12 +20,4 @@ ros2 launch pi3hat_hw_interface moteus_pi3hat_interface.launch.py \
   conf_file:=<config_yaml>
 ```
 
-For example, to launch the Omnicar configuration:
-
-```bash
-ros2 launch pi3hat_hw_interface moteus_pi3hat_interface.launch.py \
-  urdf_file:=Omnicar.xacro \
-  conf_file:=Omnicar.yaml
-```
-
-Defaults are `JumpingLeg2d.xacro` and `jump_leg.yaml`. URDF files are in `pi3hat_hw_interface/urdf/`, config YAMLs in `pi3hat_hw_interface/config/`.
+Defaults are `omnicar.xacro` and `omnicar.yaml`. URDF files are in `pi3hat_hw_interface/urdf/`, config YAMLs in `pi3hat_hw_interface/config/`.

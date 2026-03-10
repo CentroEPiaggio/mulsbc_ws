@@ -36,12 +36,12 @@ source install/local_setup.bash
 ## Launch
 
 ```bash
-ros2 launch pi3hat_hw_interface moteu_pi3hat_interface.launch.py \
-  urdf_file:=Omnicar.xacro \
-  conf_file:=Omnicar.yaml
+ros2 launch pi3hat_hw_interface moteus_pi3hat_interface.launch.py \
+  urdf_file:=omnicar.xacro \
+  conf_file:=omnicar.yaml
 ```
 
-Default launch args are `JumpingLeg2d.xacro` / `jump_leg.yaml`. URDF files live in `pi3hat_hw_interface/urdf/`, config YAMLs in `pi3hat_hw_interface/config/`.
+Default launch args are `omnicar.xacro` / `omnicar.yaml`. URDF files live in `pi3hat_hw_interface/urdf/`, config YAMLs in `pi3hat_hw_interface/config/`.
 
 The launch file starts `ros2_control_node` (controller_manager) which loads the hardware plugin and spawns controllers defined in the YAML.
 
@@ -65,7 +65,7 @@ moteus_pi3hat                   ← Low-level C++ library wrapping Pi3Hat CAN-FD
 pi3hat_hw_interface             ← ros2_control SystemInterface plugin
   ↑
 pi3hat_base_controller          ← Joint controller + state/distributor broadcasters
-omni_vel_controller             ← Omnidirectional wheel velocity controller
+omni_controller                 ← Unified omnidirectional controller (wheels IK + leg commands + state broadcasting)
 ```
 
 ### Packages
@@ -83,7 +83,7 @@ omni_vel_controller             ← Omnidirectional wheel velocity controller
 - `Distributor_State_Broadcaster` — Publishes `distributor_state_broadcaster/distributors_state` (DistributorsState).
 - `Debug_Broadcaster` — Debug echoing of joint info.
 
-**`omni_vel_controller`** — `Omni_Vel_Controller` plugin. Subscribes to `~/input_odom` (OmniMulinexCommand), computes 4-wheel omnidirectional inverse kinematics, publishes JointsCommand. Key params: `mecanum_angle`, `wheel_rad`, `feet_type`, `homing_duration`.
+**`omni_controller`** — Unified ros2_control controller. Receives leg commands, converts planar twist commands to wheel velocities via omnidirectional IK, and broadcasts joint/distributor states. Key params: `wheel_joints`, `leg_joints`, `distributor_names`, `feet_type`, `mecanum_angle`, `wheel_rad`.
 
 ### Hardware Configuration (URDF)
 
@@ -95,13 +95,11 @@ Robot configuration is defined in `.xacro` files. Each joint element configures 
 - `position_offset`, `max_pos_limit`/`min_pos_limit` — Joint-space offset and saturation (0 disables limits)
 - `type` — `motor` or `power_dist`
 
-Controller manager YAML (e.g. `Omnicar.yaml`) sets `update_rate` (typically 500 Hz) and lists which controllers to load with their parameters.
+Controller manager YAML (e.g. `omnicar.yaml`) sets `update_rate` (typically 500 Hz) and lists which controllers to load with their parameters.
 
 ### Robot Configurations
 
-- **Omnicar** (`Omnicar.xacro` + `Omnicar.yaml`) — 4 omniwheels + 2 power distributors. Motors on buses 1-4, distributors on bus 5.
-- **JumpingLeg2d** — 2-DOF leg (HIP + KNEE).
-- **SingleJoint/SingleJointSE** — Single motor test setups.
+- **Omnicar** (`omnicar.xacro` + `omnicar.yaml`) — 4 omniwheels + 2 power distributors. Motors on buses 1-4, distributors on bus 5.
 
 ### Hardware State/Command Interfaces
 

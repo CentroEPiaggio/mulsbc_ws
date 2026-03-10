@@ -1,13 +1,10 @@
 # Omni Controller
 
-Unified ros2_control controller for the Mulinex omnidirectional robot. Replaces four separate plugins with a single configurable controller:
-
-| Old plugin | Unified feature |
-|---|---|
-| `Pi3Hat_Joint_Group_Controller` | Leg command passthrough (`leg_joints`) |
-| `Omni_Vel_Controller` | Wheel IK (`wheel_joints` + `feet_type`) |
-| `Pi3Hat_State_Broadcaster` | Joint state & performance publishing |
-| `Distributor_State_Broadcaster` | Distributor state publishing (`distributor_names`) |
+Unified ros2_control controller for the Mulinex omnidirectional robot.
+It:
+- receives legs commands
+- receives planar twist commands and converts them to wheel commands
+- broadcasts joint states and power distributor states
 
 ## Parameters
 

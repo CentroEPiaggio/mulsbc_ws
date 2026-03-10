@@ -1,23 +1,16 @@
-import os
-
-from ament_index_python.packages import get_package_share_path
-
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription,ExecuteProcess,RegisterEventHandler,DeclareLaunchArgument
-from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.event_handlers import OnProcessExit
-from launch.substitutions import Command,LaunchConfiguration,PathJoinSubstitution,PythonExpression
+from launch.actions import DeclareLaunchArgument
+from launch.substitutions import Command,LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
-from launch_ros.parameter_descriptions import ParameterFile
-import subprocess
 from launch_ros.substitutions import FindPackageShare
+
 def generate_launch_description():
     ld = LaunchDescription()
 
-    urdf_name_arg = DeclareLaunchArgument("urdf_file",default_value="JumpingLeg2d.xacro")
+    urdf_name_arg = DeclareLaunchArgument("urdf_file",default_value="omnicar.xacro")
     ld.add_action(urdf_name_arg)
-    conf_name_arg = DeclareLaunchArgument("conf_file",default_value="jump_leg.yaml")
+    conf_name_arg = DeclareLaunchArgument("conf_file",default_value="omnicar.yaml")
     ld.add_action(conf_name_arg)
 
     robot_model_path = PathJoinSubstitution([
