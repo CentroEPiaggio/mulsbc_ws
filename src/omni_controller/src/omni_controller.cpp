@@ -52,6 +52,9 @@ CallbackReturn OmniController::on_init()
         auto_declare<bool>("sim", false);
         auto_declare<bool>("pub_odom", false);
         auto_declare<bool>("pub_performance", true);
+
+        // Homing
+        auto_declare<std::vector<double>>("homing_phases", std::vector<double>());
     }
     catch (const std::exception & e)
     {
@@ -191,6 +194,38 @@ CallbackReturn OmniController::on_configure(const rclcpp_lifecycle::State &)
         leg_kd_cmd_[jnt]  = 1.0;
     }
 
+    // ── Homing configuration ────────────────────────────────────────────
+    homing_phase_durations_ = get_node()->get_parameter("homing_phases").as_double_array();
+    if (homing_phase_durations_.empty() || !has_legs_)
+    {
+        has_homing_ = false;
+    }
+    else
+    {
+        if (homing_phase_durations_.size() != 2)
+        {
+            RCLCPP_ERROR(get_node()->get_logger(),
+                         "homing_phases must have exactly 2 entries, got %zu",
+                         homing_phase_durations_.size());
+            return CallbackReturn::ERROR;
+        }
+        has_homing_ = true;
+
+        for (const auto & jnt : leg_joints_)
+        {
+            auto_declare<double>("homing_config." + jnt + ".q0", 0.0);
+            auto_declare<double>("homing_config." + jnt + ".q1", 0.0);
+            auto_declare<double>("homing_config." + jnt + ".q2", 0.0);
+
+            JointHomingConfig cfg;
+            cfg.q0 = get_node()->get_parameter("homing_config." + jnt + ".q0").as_double();
+            cfg.q1 = get_node()->get_parameter("homing_config." + jnt + ".q1").as_double();
+            cfg.q2 = get_node()->get_parameter("homing_config." + jnt + ".q2").as_double();
+            homing_config_[jnt] = cfg;
+        }
+        RCLCPP_INFO(get_node()->get_logger(), "Homing configured for %zu leg joints", leg_joints_.size());
+    }
+
     // ── QoS setup ───────────────────────────────────────────────────────
     bool best_effort = get_node()->get_parameter("BestEffort_QOS").as_bool();
     int input_freq   = get_node()->get_parameter("input_frequency").as_int();
@@ -256,6 +291,14 @@ CallbackReturn OmniController::on_configure(const rclcpp_lifecycle::State &)
         "~/emergency_srv",
         std::bind(&OmniController::emergency_service_cb, this,
                   std::placeholders::_1, std::placeholders::_2));
+
+    if (has_homing_)
+    {
+        homing_srv_ = get_node()->create_service<TransactionService>(
+            "~/homing_srv",
+            std::bind(&OmniController::homing_service_cb, this,
+                      std::placeholders::_1, std::placeholders::_2));
+    }
 
     // ── Pre-allocate messages ───────────────────────────────────────────
     size_t n_motors = all_motor_joints_.size();
@@ -426,16 +469,20 @@ controller_interface::return_type OmniController::update(
 
     // Phase 2: Process commands
     std::lock_guard<std::mutex> lg(var_mutex_);
-    if (c_stt_ == ControllerState::INACTIVE)
+    switch (c_stt_)
     {
+    case ControllerState::INACTIVE:
         zero_all_commands();
-    }
-    else  // ACTIVE
-    {
+        break;
+    case ControllerState::HOMING:
+        update_homing(time);
+        break;
+    case ControllerState::ACTIVE:
         if (has_wheels_ && wheel_ik_)
             write_wheel_commands();
         if (has_legs_)
             write_leg_commands();
+        break;
     }
 
     return controller_interface::return_type::OK;
@@ -460,6 +507,8 @@ void OmniController::twist_callback(const geometry_msgs::msg::Twist::SharedPtr m
 void OmniController::legs_callback(const JointsCommand::SharedPtr msg)
 {
     std::lock_guard<std::mutex> lg(var_mutex_);
+    if (c_stt_ == ControllerState::HOMING)
+        return;
     for (size_t i = 0; i < msg->name.size(); i++)
     {
         const auto & name = msg->name[i];
@@ -479,7 +528,7 @@ void OmniController::activate_service_cb(
     const TransactionService::Response::SharedPtr res)
 {
     std::lock_guard<std::mutex> lg(var_mutex_);
-    if (c_stt_ != ControllerState::ACTIVE && req->data)
+    if (c_stt_ == ControllerState::INACTIVE && req->data)
     {
         c_stt_ = ControllerState::ACTIVE;
         res->success = true;
@@ -488,7 +537,7 @@ void OmniController::activate_service_cb(
     else
     {
         res->success = false;
-        res->message = req->data ? "Already in Active mode" : "Invalid request";
+        res->message = req->data ? "Not in Inactive mode" : "Invalid request";
     }
 }
 
@@ -639,6 +688,118 @@ void OmniController::zero_all_commands()
             set_command(jnt + "/" + hardware_interface::HW_IF_EFFORT, 0.0);
             set_command(jnt + "/" + hw_if::KP_SCALE, 0.0);
             set_command(jnt + "/" + hw_if::KD_SCALE, 1.0);
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  Homing
+// ═══════════════════════════════════════════════════════════════════════════
+
+void OmniController::homing_service_cb(
+    const TransactionService::Request::SharedPtr req,
+    const TransactionService::Response::SharedPtr res)
+{
+    std::lock_guard<std::mutex> lg(var_mutex_);
+    if (c_stt_ == ControllerState::INACTIVE && has_homing_ && req->data)
+    {
+        homing_phase_ = 0;
+        homing_time_initialized_ = false;
+        c_stt_ = ControllerState::HOMING;
+        res->success = true;
+        res->message = "Homing started";
+        RCLCPP_INFO(get_node()->get_logger(), "Homing started");
+    }
+    else
+    {
+        res->success = false;
+        res->message = req->data ? "Cannot start homing (not INACTIVE or no homing config)"
+                                 : "Invalid request";
+    }
+}
+
+double OmniController::cosine_interp(double a, double b, double t)
+{
+    return a + 0.5 * (1.0 - std::cos(M_PI * t)) * (b - a);
+}
+
+void OmniController::update_homing(const rclcpp::Time & time)
+{
+    // Initialize timer on first call of each phase
+    if (!homing_time_initialized_)
+    {
+        homing_start_time_ = time;
+        homing_time_initialized_ = true;
+
+        // On phase 0 start, read current joint positions as the actual origin
+        if (homing_phase_ == 0)
+        {
+            for (const auto & jnt : leg_joints_)
+                homing_q_start_[jnt] = get_state(jnt + "/" + hardware_interface::HW_IF_POSITION);
+        }
+    }
+
+    double elapsed = (time - homing_start_time_).seconds();
+    double duration = homing_phase_durations_[static_cast<size_t>(homing_phase_)];
+    double t = std::clamp(elapsed / duration, 0.0, 1.0);
+
+    // Interpolate leg joints
+    for (const auto & jnt : leg_joints_)
+    {
+        const auto & cfg = homing_config_[jnt];
+        double q_start = (homing_phase_ == 0) ? homing_q_start_[jnt] : cfg.q1;
+        double q_end   = (homing_phase_ == 0) ? cfg.q1 : cfg.q2;
+        double q = cosine_interp(q_start, q_end, t);
+
+        set_command(jnt + "/" + hardware_interface::HW_IF_POSITION, q);
+        set_command(jnt + "/" + hardware_interface::HW_IF_VELOCITY, 0.0);
+        set_command(jnt + "/" + hardware_interface::HW_IF_EFFORT, 0.0);
+        if (!sim_flag_)
+        {
+            set_command(jnt + "/" + hw_if::KP_SCALE, 1.0);
+            set_command(jnt + "/" + hw_if::KD_SCALE, 1.0);
+        }
+    }
+
+    // Lock wheels during homing
+    if (has_wheels_)
+    {
+        for (const auto & jnt : wheel_joints_)
+        {
+            set_command(jnt + "/" + hardware_interface::HW_IF_VELOCITY, 0.0);
+            if (!sim_flag_)
+            {
+                set_command(jnt + "/" + hardware_interface::HW_IF_POSITION, std::nan("1"));
+                set_command(jnt + "/" + hardware_interface::HW_IF_EFFORT, 0.0);
+                set_command(jnt + "/" + hw_if::KP_SCALE, 0.0);
+                set_command(jnt + "/" + hw_if::KD_SCALE, 1.0);
+            }
+        }
+    }
+
+    // Handle phase transitions (after commands are written)
+    if (t >= 1.0)
+    {
+        if (homing_phase_ == 0)
+        {
+            homing_phase_ = 1;
+            homing_time_initialized_ = false;
+            RCLCPP_INFO(get_node()->get_logger(), "Homing phase 0 complete, starting phase 1");
+        }
+        else
+        {
+            // Homing complete — set leg buffers to q2 for future ACTIVE use
+            for (const auto & jnt : leg_joints_)
+            {
+                const auto & cfg = homing_config_[jnt];
+                leg_pos_cmd_[jnt] = cfg.q2;
+                leg_vel_cmd_[jnt] = 0.0;
+                leg_eff_cmd_[jnt] = 0.0;
+                leg_kp_cmd_[jnt]  = 1.0;
+                leg_kd_cmd_[jnt]  = 1.0;
+            }
+            c_stt_ = ControllerState::INACTIVE;
+            RCLCPP_INFO(get_node()->get_logger(), "Homing complete, returning to INACTIVE");
         }
     }
 }

@@ -40,6 +40,18 @@ omni_controller:
     driveshaft_y: 0.188
     mecanum_angle: 135.0
 
+    # Homing
+    homing_phases: [1.0, 1.0]
+    homing_config:
+      LF_HFE: {q0: 0.0, q1: -2.0, q2: -4.0}
+      LF_KFE: {q0: 0.0, q1:  3.0, q2:  5.0}
+      LH_HFE: {q0: 0.0, q1:  2.0, q2:  4.0}
+      LH_KFE: {q0: 0.0, q1: -3.0, q2: -5.0}
+      RF_HFE: {q0: 0.0, q1:  2.0, q2:  4.0}
+      RF_KFE: {q0: 0.0, q1: -3.0, q2: -5.0}
+      RH_HFE: {q0: 0.0, q1: -2.0, q2: -4.0}
+      RH_KFE: {q0: 0.0, q1:  3.0, q2:  5.0}
+
     # Communication
     input_frequency: 100
     BestEffort_QOS: true

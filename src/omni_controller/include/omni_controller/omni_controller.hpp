@@ -45,7 +45,15 @@ namespace hw_if
 enum ControllerState
 {
     INACTIVE = 0,
+    HOMING,
     ACTIVE,
+};
+
+struct JointHomingConfig
+{
+    double q0 = 0.0;
+    double q1 = 0.0;
+    double q2 = 0.0;
 };
 
 using CallbackReturn = rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn;
@@ -87,6 +95,7 @@ private:
     bool has_wheels_ = false;
     bool has_legs_ = false;
     bool has_distributors_ = false;
+    bool has_homing_ = false;
     bool sim_flag_ = false;
     bool pub_odom_ = false;
     bool pub_performance_ = true;
@@ -97,6 +106,14 @@ private:
     // ─── State machine ──────────────────────────────────────────────────
     ControllerState c_stt_ = ControllerState::INACTIVE;
     std::atomic<int> dl_miss_count_{0};
+
+    // ─── Homing ─────────────────────────────────────────────────────────
+    std::vector<double> homing_phase_durations_;
+    std::map<std::string, JointHomingConfig> homing_config_;
+    std::map<std::string, double> homing_q_start_;  // actual joint pos at homing start
+    int homing_phase_ = 0;
+    rclcpp::Time homing_start_time_;
+    bool homing_time_initialized_ = false;
 
     // ─── Buffered commands (protected by mutex) ─────────────────────────
     std::mutex var_mutex_;
@@ -134,6 +151,7 @@ private:
     // ─── Services ───────────────────────────────────────────────────────
     rclcpp::Service<TransactionService>::SharedPtr activate_srv_;
     rclcpp::Service<TransactionService>::SharedPtr emergency_srv_;
+    rclcpp::Service<TransactionService>::SharedPtr homing_srv_;
 
     // ─── Callbacks ──────────────────────────────────────────────────────
     void twist_callback(const geometry_msgs::msg::Twist::SharedPtr msg);
@@ -142,6 +160,8 @@ private:
                              const TransactionService::Response::SharedPtr res);
     void emergency_service_cb(const TransactionService::Request::SharedPtr req,
                               const TransactionService::Response::SharedPtr res);
+    void homing_service_cb(const TransactionService::Request::SharedPtr req,
+                           const TransactionService::Response::SharedPtr res);
 
     // ─── Update helpers ─────────────────────────────────────────────────
     void publish_joint_states(const rclcpp::Time & time);
@@ -151,6 +171,8 @@ private:
     void write_wheel_commands();
     void write_leg_commands();
     void zero_all_commands();
+    void update_homing(const rclcpp::Time & time);
+    static double cosine_interp(double a, double b, double t);
 
     // ─── Helpers ────────────────────────────────────────────────────────
     /// Get state interface value by "joint/interface" key. Returns 0.0 if not found.

@@ -1,23 +1,222 @@
 # Mulinex SBC ROS 2 Workspace
 
-Workspace for ROS 2 packages running on the Mulinex robot's on-board SBC (Raspberry Pi 4 + MJBots Pi3Hat).
+ROS 2 Humble workspace for the **Mulinex** omnidirectional robot's on-board SBC (Raspberry Pi 4 + MJBots Pi3Hat). Contains the `ros2_control` hardware interface, controllers, and custom messages that communicate with Moteus motor drivers via CAN-FD.
 
-## Docker
+## Architecture
 
-The docker image is for ARM64 development on x86 hosts via QEMU emulation.
+### ros2_control Pipeline
 
-Build, start, enter, and stop the container with `make build`, `make start`, `make enter`, and `make stop`, respectively.
+```
+Commands (topics)  -->  Controllers  -->  Hardware Interface  -->  CAN-FD  -->  Moteus Motors
+                                          | (read/write cycle)
+Feedback (topics)  <--  Broadcasters <--  Hardware Interface  <--  CAN-FD  <--  Moteus Motors
+```
 
-## Pi3hat Robotic Systems
+### Package Dependency Graph
 
-[Pi3hat Robotic Systems](src/pi3hat/README.md)
+```
+pi3hat_moteus_int_msgs          <-- Custom .msg definitions (base dependency)
+  ^
+moteus_pi3hat                   <-- Low-level C++ library wrapping Pi3Hat CAN-FD
+  ^
+pi3hat_hw_interface             <-- ros2_control SystemInterface plugin
+  ^
+omni_controller                 <-- Unified omnidirectional controller (wheels IK + legs + state broadcasting)
+pi3hat_base_controller          <-- Standalone joint controller + state broadcasters
+```
 
-## Launch
+### Robot Configurations
+
+| Config | XACRO | YAML | Description |
+|--------|-------|------|-------------|
+| **Omnicar** | `omnicar.xacro` | `omnicar.yaml` | 4 mecanum wheels + 2 power distributors |
+| **Omniquad** | `omniquad.xacro` | `omniquad.yaml` | 4 mecanum wheels + 8 leg joints (HFE + KFE per leg) |
+
+## Quick Start
+
+### Build
+
+```bash
+colcon build --symlink-install
+source install/local_setup.bash
+```
+
+> `pi3hat_moteus_int_msgs` must build first (all other packages depend on it).
+
+### Launch
 
 ```bash
 ros2 launch pi3hat_hw_interface moteus_pi3hat_interface.launch.py \
-  urdf_file:=<urdf_xacro> \
-  conf_file:=<config_yaml>
+  urdf_file:=omnicar.xacro \
+  conf_file:=omnicar.yaml
 ```
 
-Defaults are `omnicar.xacro` and `omnicar.yaml`. URDF files are in `pi3hat_hw_interface/urdf/`, config YAMLs in `pi3hat_hw_interface/config/`.
+Defaults are `omnicar.xacro` / `omnicar.yaml`. URDF files live in `pi3hat_hw_interface/urdf/`, config YAMLs in `pi3hat_hw_interface/config/`.
+
+## Controlling the Robot
+
+The **OmniController** is the primary user-facing controller. All topics are under the `/omni_controller/` namespace.
+
+### Step 1: Activate the controller
+
+Call the activation service before sending commands:
+
+```bash
+ros2 service call /omni_controller/activate_srv std_srvs/srv/SetBool "{data: true}"
+```
+
+### Step 2: Send commands
+
+**Drive the base** (wheels) by publishing a `Twist` message:
+
+```bash
+ros2 topic pub /omni_controller/twist_cmd geometry_msgs/msg/Twist \
+  "{linear: {x: 0.5, y: 0.0, z: 0.0}, angular: {x: 0.0, y: 0.0, z: 0.0}}"
+```
+
+**Command leg joints** (Omniquad only) by publishing a `JointsCommand`:
+
+```bash
+ros2 topic pub /omni_controller/legs_cmd pi3hat_moteus_int_msgs/msg/JointsCommand \
+  "{name: ['LF_HFE','LF_KFE'], position: [0.5, -1.0], velocity: [0.0, 0.0], effort: [0.0, 0.0], kp_scale: [1.0, 1.0], kd_scale: [1.0, 1.0]}"
+```
+
+### Step 3: Read feedback
+
+```bash
+ros2 topic echo /omni_controller/joints_state    # Joint positions, velocities, efforts, currents, temperatures
+ros2 topic echo /omni_controller/performance      # CAN-FD communication performance metrics
+ros2 topic echo /omni_controller/distributors_state  # Power distributor voltage, current, temperature
+```
+
+### Emergency stop
+
+```bash
+ros2 service call /omni_controller/emergency_srv std_srvs/srv/SetBool "{data: true}"
+```
+
+## Topics Reference (OmniController)
+
+### Input Topics (user publishes)
+
+| Topic | Message Type | Description |
+|-------|-------------|-------------|
+| `/omni_controller/twist_cmd` | `geometry_msgs/msg/Twist` | Base velocity: `linear.x` (forward), `linear.y` (left), `angular.z` (CCW). QoS: BestEffort with deadline at `input_frequency` (default 100 Hz). |
+| `/omni_controller/legs_cmd` | `pi3hat_moteus_int_msgs/msg/JointsCommand` | Leg joint commands (position, velocity, effort, kp/kd scaling). QoS: Reliable. Only active when `leg_joints` are configured. |
+
+### Output Topics (user subscribes)
+
+| Topic | Message Type | Description |
+|-------|-------------|-------------|
+| `/omni_controller/joints_state` | `pi3hat_moteus_int_msgs/msg/JointsStates` | All motor feedback: position, velocity, effort, current, temperature, secondary encoder data. Always published. |
+| `/omni_controller/performance` | `pi3hat_moteus_int_msgs/msg/PacketPass` | CAN-FD packet loss and cycle timing. Published when `pub_performance: true` (default). |
+| `/omni_controller/distributors_state` | `pi3hat_moteus_int_msgs/msg/DistributorsState` | Power distributor states. Published when distributors are configured. |
+| `/omni_controller/odom` | `geometry_msgs/msg/TwistStamped` | Wheel odometry (base frame velocities). Published when `pub_odom: true`. |
+
+### Services
+
+| Service | Type | Description |
+|---------|------|-------------|
+| `/omni_controller/activate_srv` | `std_srvs/srv/SetBool` | `data: true` to activate, `data: false` to deactivate command processing. |
+| `/omni_controller/emergency_srv` | `std_srvs/srv/SetBool` | `data: true` to enter emergency stop. |
+
+## Custom Message Definitions
+
+### JointsCommand
+
+Used to command joints (legs via OmniController, or any joint via Pi3Hat_Joint_Group_Controller).
+
+```
+std_msgs/Header header
+string[]  name        # Joint names
+float64[] position    # Position commands [rad] (NaN disables P control)
+float64[] velocity    # Velocity commands [rad/s] (NaN disables D control)
+float64[] effort      # Effort/torque commands [Nm] (NaN causes motor fault)
+float64[] kp_scale    # Proportional gain scale [0.0-1.0]
+float64[] kd_scale    # Derivative gain scale [0.0-1.0]
+```
+
+### JointsStates
+
+Feedback from all motor joints.
+
+```
+std_msgs/Header header
+string[]  name         # Joint names
+float64[] position     # Joint positions [rad]
+float64[] velocity     # Joint velocities [rad/s]
+float64[] effort       # Joint torques [Nm]
+float64[] current      # Q-axis motor currents [A]
+float64[] temperature  # Driver temperatures [C]
+float64[] sec_enc_pos  # Secondary encoder positions (if configured)
+float64[] sec_enc_vel  # Secondary encoder velocities (if configured)
+```
+
+### PacketPass
+
+CAN-FD communication performance metrics.
+
+```
+std_msgs/Header header
+float64   valid          # Percentage of valid packets received
+float64   cycle_dur      # Cycle operation duration [s]
+float64   write2read_dur # Time left for Pi3Hat communication [s]
+string[]  name           # Motor IDs
+float64[] pack_loss      # Packet loss percentage per motor
+```
+
+### DistributorsState
+
+Power distributor feedback.
+
+```
+std_msgs/Header header
+string[]  name         # Distributor names
+float64[] current      # Currents [A]
+float64[] voltage      # Voltages [V]
+float64[] temperature  # Temperatures [C]
+```
+
+### OmniMulinexCommand
+
+Legacy demo message for omnidirectional base commands.
+
+```
+std_msgs/Header header
+float64 v_x         # Velocity X in base frame [m/s]
+float64 v_y         # Velocity Y in base frame [m/s]
+float64 omega       # Angular velocity around Z [rad/s]
+float64 height_rate  # Vertical velocity [m/s]
+```
+
+## Docker (ARM64 development on x86 host)
+
+For cross-compiling / testing on an x86 machine via QEMU emulation:
+
+```bash
+make build    # Build Docker image (first time / Dockerfile changes)
+make start    # Start container
+make attach   # Enter the container shell
+make stop     # Stop container
+```
+
+Or directly:
+
+```bash
+bash docker/build.bash
+docker compose -f docker/docker-compose.yaml up -d
+docker exec -it mulsbc-arm64-dev bash
+docker compose -f docker/docker-compose.yaml down
+```
+
+The workspace is bind-mounted at `/ws/` inside the container.
+
+## Raspberry Pi Prerequisites
+
+- Ubuntu 22.04 with RT kernel on Raspberry Pi 4 ([tested image](https://github.com/ros-realtime/ros-realtime-rpi4-image/releases/tag/22.04.3_v5.15.98-rt62-raspi_ros2_humble))
+- Pi3Hat r4.4 or newer
+- `bcm_host` library: `sudo ln /usr/lib/aarch64-linux-gnu/libbcm_host.so /usr/lib/libbcm_host.so.0`
+- `ros-humble-ros2-control`, `ros-humble-ros2-controllers`, `ros-humble-xacro`
+- Python moteus library: `pip3 install moteus==0.3.67 moteus_pi3hat`
+
+See [Pi3Hat Robotic Systems](src/pi3hat/README.md) for detailed Raspberry Pi setup instructions.
