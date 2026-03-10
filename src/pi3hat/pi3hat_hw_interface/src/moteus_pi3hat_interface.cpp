@@ -303,6 +303,7 @@ namespace pi3hat_hw_interface
         CallbackReturn MoteusPi3Hat_Interface::on_activate(const rclcpp_lifecycle::State&)
         {
             motors_stopped_.store(false);
+            first_cycle_ = true;
             pi3hat_transport_.reset();
             if(attitude_requested_)
             {
