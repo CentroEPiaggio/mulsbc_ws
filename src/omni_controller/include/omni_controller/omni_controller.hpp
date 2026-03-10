@@ -51,9 +51,10 @@ enum ControllerState
 
 struct JointHomingConfig
 {
-    double q0 = 0.0;
-    double q1 = 0.0;
-    double q2 = 0.0;
+    double qi = 0.0;
+    double qm = 0.0;
+    double qf = 0.0;
+    bool has_qm = false;
 };
 
 using CallbackReturn = rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn;

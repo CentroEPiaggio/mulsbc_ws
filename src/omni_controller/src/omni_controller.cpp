@@ -202,25 +202,30 @@ CallbackReturn OmniController::on_configure(const rclcpp_lifecycle::State &)
     }
     else
     {
-        if (homing_phase_durations_.size() != 2)
+        if (homing_phase_durations_.size() < 1 || homing_phase_durations_.size() > 2)
         {
             RCLCPP_ERROR(get_node()->get_logger(),
-                         "homing_phases must have exactly 2 entries, got %zu",
+                         "homing_phases must have 1 or 2 entries, got %zu",
                          homing_phase_durations_.size());
             return CallbackReturn::ERROR;
         }
         has_homing_ = true;
+        bool has_qm = (homing_phase_durations_.size() == 2);
 
         for (const auto & jnt : leg_joints_)
         {
-            auto_declare<double>("homing_config." + jnt + ".q0", 0.0);
-            auto_declare<double>("homing_config." + jnt + ".q1", 0.0);
-            auto_declare<double>("homing_config." + jnt + ".q2", 0.0);
+            auto_declare<double>("homing_config." + jnt + ".qi", 0.0);
+            auto_declare<double>("homing_config." + jnt + ".qf", 0.0);
 
             JointHomingConfig cfg;
-            cfg.q0 = get_node()->get_parameter("homing_config." + jnt + ".q0").as_double();
-            cfg.q1 = get_node()->get_parameter("homing_config." + jnt + ".q1").as_double();
-            cfg.q2 = get_node()->get_parameter("homing_config." + jnt + ".q2").as_double();
+            cfg.qi = get_node()->get_parameter("homing_config." + jnt + ".qi").as_double();
+            cfg.qf = get_node()->get_parameter("homing_config." + jnt + ".qf").as_double();
+            cfg.has_qm = has_qm;
+            if (has_qm)
+            {
+                auto_declare<double>("homing_config." + jnt + ".qm", 0.0);
+                cfg.qm = get_node()->get_parameter("homing_config." + jnt + ".qm").as_double();
+            }
             homing_config_[jnt] = cfg;
         }
         RCLCPP_INFO(get_node()->get_logger(), "Homing configured for %zu leg joints", leg_joints_.size());
@@ -537,6 +542,18 @@ void OmniController::activate_service_cb(
             RCLCPP_WARN(get_node()->get_logger(), "Activate rejected: homing required before activation");
             return;
         }
+        // Snap leg commands to actual positions to prevent jumps
+        if (has_legs_)
+        {
+            for (const auto & jnt : leg_joints_)
+            {
+                leg_pos_cmd_[jnt] = get_state(jnt + "/" + hardware_interface::HW_IF_POSITION);
+                leg_vel_cmd_[jnt] = 0.0;
+                leg_eff_cmd_[jnt] = 0.0;
+                leg_kp_cmd_[jnt]  = 1.0;
+                leg_kd_cmd_[jnt]  = 1.0;
+            }
+        }
         c_stt_ = ControllerState::ACTIVE;
         res->success = true;
         res->message = "Active mode activated";
@@ -754,8 +771,19 @@ void OmniController::update_homing(const rclcpp::Time & time)
     for (const auto & jnt : leg_joints_)
     {
         const auto & cfg = homing_config_[jnt];
-        double q_start = (homing_phase_ == 0) ? homing_q_start_[jnt] : cfg.q1;
-        double q_end   = (homing_phase_ == 0) ? cfg.q1 : cfg.q2;
+        double q_start, q_end;
+        if (!cfg.has_qm)
+        {
+            // Single phase: hardware_pos → qf
+            q_start = homing_q_start_[jnt];
+            q_end   = cfg.qf;
+        }
+        else
+        {
+            // Two phases: phase 0: hardware_pos → qm, phase 1: qm → qf
+            q_start = (homing_phase_ == 0) ? homing_q_start_[jnt] : cfg.qm;
+            q_end   = (homing_phase_ == 0) ? cfg.qm : cfg.qf;
+        }
         double q = cosine_interp(q_start, q_end, t);
 
         set_command(jnt + "/" + hardware_interface::HW_IF_POSITION, q);
@@ -787,7 +815,8 @@ void OmniController::update_homing(const rclcpp::Time & time)
     // Handle phase transitions (after commands are written)
     if (t >= 1.0)
     {
-        if (homing_phase_ == 0)
+        bool two_phase = (homing_phase_durations_.size() == 2);
+        if (two_phase && homing_phase_ == 0)
         {
             homing_phase_ = 1;
             homing_time_initialized_ = false;
@@ -795,11 +824,11 @@ void OmniController::update_homing(const rclcpp::Time & time)
         }
         else
         {
-            // Homing complete — set leg buffers to q2 for future ACTIVE use
+            // Homing complete — set leg buffers to qf for future ACTIVE use
             for (const auto & jnt : leg_joints_)
             {
                 const auto & cfg = homing_config_[jnt];
-                leg_pos_cmd_[jnt] = cfg.q2;
+                leg_pos_cmd_[jnt] = cfg.qf;
                 leg_vel_cmd_[jnt] = 0.0;
                 leg_eff_cmd_[jnt] = 0.0;
                 leg_kp_cmd_[jnt]  = 1.0;
