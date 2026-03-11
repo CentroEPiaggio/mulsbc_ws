@@ -835,8 +835,8 @@ void OmniController::update_homing(const rclcpp::Time & time)
                 leg_kd_cmd_[jnt]  = 1.0;
             }
             homing_completed_ = true;
-            c_stt_ = ControllerState::INACTIVE;
-            RCLCPP_INFO(get_node()->get_logger(), "Homing complete, returning to INACTIVE");
+            c_stt_ = ControllerState::ACTIVE;
+            RCLCPP_INFO(get_node()->get_logger(), "Homing complete, transitioning to ACTIVE");
         }
     }
 }
