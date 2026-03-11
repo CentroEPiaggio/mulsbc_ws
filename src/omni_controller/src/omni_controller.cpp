@@ -718,7 +718,7 @@ void OmniController::homing_service_cb(
     const TransactionService::Response::SharedPtr res)
 {
     std::lock_guard<std::mutex> lg(var_mutex_);
-    if (c_stt_ == ControllerState::INACTIVE && has_homing_ && req->data)
+    if ((c_stt_ == ControllerState::INACTIVE || c_stt_ == ControllerState::ACTIVE) && has_homing_ && req->data)
     {
         homing_phase_ = 0;
         homing_time_initialized_ = false;
@@ -730,7 +730,7 @@ void OmniController::homing_service_cb(
     else
     {
         res->success = false;
-        res->message = req->data ? "Cannot start homing (not INACTIVE or no homing config)"
+        res->message = req->data ? "Cannot start homing (already HOMING or no homing config)"
                                  : "Invalid request";
     }
 }
