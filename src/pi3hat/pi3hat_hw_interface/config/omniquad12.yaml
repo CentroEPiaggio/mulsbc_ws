@@ -17,27 +17,27 @@ controller_manager:
 state_broadcaster:
     ros__parameters:
         joints:
-            - "LF_HIP_JNT"
-            - "LF_KNEE_JNT"
-            - "LH_HIP_JNT"
-            - "LH_KNEE_JNT"
-            - "RF_HIP_JNT"
-            - "RF_KNEE_JNT"
-            - "RH_HIP_JNT"
-            - "RH_KNEE_JNT"
+            - "LF_HFE"
+            - "LF_KFE"
+            - "LH_HFE"
+            - "LH_KFE"
+            - "RF_HFE"
+            - "RF_KFE"
+            - "RH_HFE"
+            - "RH_KFE"
             - "LF_WHEEL_JNT"
             - "LH_WHEEL_JNT"
             - "RF_WHEEL_JNT"
             - "RH_WHEEL_JNT"
         # second_encoders:
-        #     - "LF_HIP_JNT"
-        #     - "LF_KNEE_JNT"
-        #     - "LH_HIP_JNT"
-        #     - "LH_KNEE_JNT"
-        #     - "RF_HIP_JNT"
-        #     - "RF_KNEE_JNT"
-        #     - "RH_HIP_JNT"
-        #     - "RH_KNEE_JNT"
+        #     - "LF_HFE"
+        #     - "LF_KFE"
+        #     - "LH_HFE"
+        #     - "LH_KFE"
+        #     - "RF_HFE"
+        #     - "RF_KFE"
+        #     - "RH_HFE"
+        #     - "RH_KFE"
 
 imu_sensor:
     ros__parameters:
@@ -47,14 +47,14 @@ imu_sensor:
 joint_controller:
     ros__parameters:
         joints:
-            - "LF_HIP_JNT"
-            - "LF_KNEE_JNT"
-            - "LH_HIP_JNT"
-            - "LH_KNEE_JNT"
-            - "RF_HIP_JNT"
-            - "RF_KNEE_JNT"
-            - "RH_HIP_JNT"
-            - "RH_KNEE_JNT"
+            - "LF_HFE"
+            - "LF_KFE"
+            - "LH_HFE"
+            - "LH_KFE"
+            - "RF_HFE"
+            - "RF_KFE"
+            - "RH_HFE"
+            - "RH_KFE"
             - "LF_WHEEL_JNT"
             - "LH_WHEEL_JNT"
             - "RF_WHEEL_JNT"
@@ -69,40 +69,40 @@ omni_controller:
             RH: RH_WHEEL_JNT
 
         leg_joints:
-            - LF_HIP_JNT
-            - LF_KNEE_JNT
-            - LH_HIP_JNT
-            - LH_KNEE_JNT
-            - RF_HIP_JNT
-            - RF_KNEE_JNT
-            - RH_HIP_JNT
-            - RH_KNEE_JNT
+            - LF_HFE
+            - LF_KFE
+            - LH_HFE
+            - LH_KFE
+            - RF_HFE
+            - RF_KFE
+            - RH_HFE
+            - RH_KFE
 
         # distributor_names:
         #     - Distributor_R
         #     - Distributor_L
 
         # second_encoder_joints:
-        #     - LF_HIP_JNT
-        #     - LF_KNEE_JNT
-        #     - LH_HIP_JNT
-        #     - LH_KNEE_JNT
-        #     - RF_HIP_JNT
-        #     - RF_KNEE_JNT
-        #     - RH_HIP_JNT
-        #     - RH_KNEE_JNT
+        #     - LF_HFE
+        #     - LF_KFE
+        #     - LH_HFE
+        #     - LH_KFE
+        #     - RF_HFE
+        #     - RF_KFE
+        #     - RH_HFE
+        #     - RH_KFE
 
         # Homing
         homing_phases: [5.0]
         homing_config:
-            LF_HIP_JNT:  {qi: 0.0, qf:  2.0}
-            LF_KNEE_JNT: {qi: 0.0, qf: -1.0}
-            LH_HIP_JNT:  {qi: 0.0, qf: -2.0}
-            LH_KNEE_JNT: {qi: 0.0, qf:  1.0}
-            RF_HIP_JNT:  {qi: 0.0, qf: -2.0}
-            RF_KNEE_JNT: {qi: 0.0, qf:  1.0}
-            RH_HIP_JNT:  {qi: 0.0, qf:  2.0}
-            RH_KNEE_JNT: {qi: 0.0, qf: -1.0}
+            LF_HFE: {qi: 0.0, qf:  2.0}
+            LF_KFE: {qi: 0.0, qf: -1.0}
+            LH_HFE: {qi: 0.0, qf: -2.0}
+            LH_KFE: {qi: 0.0, qf:  1.0}
+            RF_HFE: {qi: 0.0, qf: -2.0}
+            RF_KFE: {qi: 0.0, qf:  1.0}
+            RH_HFE: {qi: 0.0, qf:  2.0}
+            RH_KFE: {qi: 0.0, qf: -1.0}
         
         # Wheel IK
         feet_type: mecanum
