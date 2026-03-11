@@ -34,7 +34,6 @@ namespace pi3hat_hw_interface
                 second_encoder_output_ = std::make_unique<SecondEncoderOutput>(second_encoder_transmission_);
             max_torque_ = act_opt_.max_effort;
             position_offset_ = act_opt_.position_offset;
-            cmd_.position = position_offset_;
             c_opt.query_format = query_format_;
             // RCLCPP_INFO(rclcpp::get_logger("Actuator_Manager"),"Configuring actuator extra %d %d ",c_opt.query_format.extra[0].register_number,c_opt.query_format.extra[1].register_number);
             //create controller 

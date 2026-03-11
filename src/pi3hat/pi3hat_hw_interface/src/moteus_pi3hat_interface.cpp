@@ -333,8 +333,23 @@ namespace pi3hat_hw_interface
 
                 cbk.Wait();
             }
-            
-            
+
+            // Parse replies from the stop cycle to get current positions,
+            // then initialize command references to the measured state (with kp=0, kd=0)
+            // so the first write() doesn't drive motors to an arbitrary position.
+            for(const auto& rep : replies_)
+            {
+                for(auto i : actuator_index_)
+                {
+                    if(rep.source == actuators_[i]->GetActuatorId())
+                    {
+                        actuators_[i]->ParseSttFromReply(rep);
+                        actuators_[i]->SnapCommandToState();
+                        break;
+                    }
+                }
+            }
+
             return CallbackReturn::SUCCESS;
         };
         

@@ -701,7 +701,7 @@ void OmniController::zero_all_commands()
         set_command(jnt + "/" + hardware_interface::HW_IF_VELOCITY, 0.0);
         if (!sim_flag_)
         {
-            set_command(jnt + "/" + hardware_interface::HW_IF_POSITION, 0.0);
+            set_command(jnt + "/" + hardware_interface::HW_IF_POSITION, std::nan("1"));
             set_command(jnt + "/" + hardware_interface::HW_IF_EFFORT, 0.0);
             set_command(jnt + "/" + hw_if::KP_SCALE, 0.0);
             set_command(jnt + "/" + hw_if::KD_SCALE, 1.0);
