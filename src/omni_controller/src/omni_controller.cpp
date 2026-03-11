@@ -535,13 +535,6 @@ void OmniController::activate_service_cb(
     std::lock_guard<std::mutex> lg(var_mutex_);
     if (c_stt_ == ControllerState::INACTIVE && req->data)
     {
-        if (has_legs_ && !homing_completed_)
-        {
-            res->success = false;
-            res->message = "Homing required before activation";
-            RCLCPP_WARN(get_node()->get_logger(), "Activate rejected: homing required before activation");
-            return;
-        }
         // Snap leg commands to actual positions to prevent jumps
         if (has_legs_)
         {
