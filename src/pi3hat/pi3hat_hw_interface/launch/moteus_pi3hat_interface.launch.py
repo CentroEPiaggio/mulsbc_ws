@@ -33,19 +33,19 @@ def generate_launch_description():
         parameters=[{"robot_description": robot_description},controller_path],
     )
 
-    jsb_spawner = Node(
+    state_broadcaster_spawner = Node(
         package="controller_manager",
         executable="spawner",
-        arguments=["joint_state_broadcaster"],
+        arguments=["state_broadcaster"],
     )
 
-    omni_spawner = Node(
+    omni_controller_spawner = Node(
         package="controller_manager",
         executable="spawner",
         arguments=["omni_controller"],
     )
 
     ld.add_action(control_node)
-    ld.add_action(jsb_spawner)
-    ld.add_action(omni_spawner)
+    ld.add_action(state_broadcaster_spawner)
+    ld.add_action(omni_controller_spawner)
     return ld

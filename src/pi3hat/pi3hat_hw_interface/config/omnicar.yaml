@@ -2,14 +2,22 @@ controller_manager:
     ros__parameters:
         update_rate: 500
 
-        joint_state_broadcaster:
-            type: joint_state_broadcaster/JointStateBroadcaster
+        state_broadcaster:
+            type: pi3hat_state_broadcaster/Pi3Hat_State_Broadcaster
+
+        imu_sensor:
+            type: imu_sensor_broadcaster/IMUSensorBroadcaster
 
         omni_controller:
             type: omni_controller/OmniController
-        
-        imu_sensor:
-            type: imu_sensor_broadcaster/IMUSensorBroadcaster
+
+state_broadcaster:
+    ros__parameters:
+        joints:
+            - "LF_WHEEL_JNT"
+            - "LH_WHEEL_JNT"
+            - "RF_WHEEL_JNT"
+            - "RH_WHEEL_JNT"
 
 imu_sensor:
     ros__parameters:

@@ -1,20 +1,64 @@
 controller_manager:
     ros__parameters:
         update_rate: 500
-
-        joint_state_broadcaster:
-            type: joint_state_broadcaster/JointStateBroadcaster
-
-        omni_controller:
-            type: omni_controller/OmniController
+        
+        state_broadcaster:
+            type: pi3hat_state_broadcaster/Pi3Hat_State_Broadcaster
         
         imu_sensor:
             type: imu_sensor_broadcaster/IMUSensorBroadcaster
+
+        joint_controller:
+            type: pi3hat_joint_group_controller/Pi3Hat_Joint_Group_Controller
+
+        omni_controller:
+            type: omni_controller/OmniController
+
+state_broadcaster:
+    ros__parameters:
+        joints:
+            - "LF_HIP_JNT"
+            - "LF_KNEE_JNT"
+            - "LH_HIP_JNT"
+            - "LH_KNEE_JNT"
+            - "RF_HIP_JNT"
+            - "RF_KNEE_JNT"
+            - "RH_HIP_JNT"
+            - "RH_KNEE_JNT"
+            - "LF_WHEEL_JNT"
+            - "LH_WHEEL_JNT"
+            - "RF_WHEEL_JNT"
+            - "RH_WHEEL_JNT"
+        # second_encoders:
+        #     - "LF_HIP_JNT"
+        #     - "LF_KNEE_JNT"
+        #     - "LH_HIP_JNT"
+        #     - "LH_KNEE_JNT"
+        #     - "RF_HIP_JNT"
+        #     - "RF_KNEE_JNT"
+        #     - "RH_HIP_JNT"
+        #     - "RH_KNEE_JNT"
 
 imu_sensor:
     ros__parameters:
         frame_id: imu_link
         sensor_name: Pi3Hat
+
+joint_controller:
+    ros__parameters:
+        joints:
+            - "LF_HIP_JNT"
+            - "LF_KNEE_JNT"
+            - "LH_HIP_JNT"
+            - "LH_KNEE_JNT"
+            - "RF_HIP_JNT"
+            - "RF_KNEE_JNT"
+            - "RH_HIP_JNT"
+            - "RH_KNEE_JNT"
+            - "LF_WHEEL_JNT"
+            - "LH_WHEEL_JNT"
+            - "RF_WHEEL_JNT"
+            - "RH_WHEEL_JNT"
 
 omni_controller:
     ros__parameters:
