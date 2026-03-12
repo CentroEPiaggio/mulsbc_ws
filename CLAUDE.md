@@ -4,123 +4,80 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-ROS 2 Humble workspace for the **Mulinex** omnidirectional robot's on-board SBC (Raspberry Pi 4 + MJBots Pi3Hat). This repo contains the ros2_control hardware interface, controllers, and custom messages that run directly on the robot, communicating with Moteus motor drivers via CAN-FD.
+ROS 2 Humble workspace for the **Mulinex** omnidirectional robot's on-board SBC (Raspberry Pi 4 + MJBots Pi3Hat). Contains the `ros2_control` hardware interface, controllers, and custom messages that communicate with Moteus motor drivers via CAN-FD.
 
-This workspace is separate from the parent `mulinex_ws` Docker workspace (which targets the Intel NUC for development). This code runs natively on the Raspberry Pi.
+This workspace is separate from the parent `mulinex_ws` Docker workspace (which targets the Intel NUC). This code runs natively on the Raspberry Pi.
 
 ## Docker (ARM64 testing on x86 host)
 
-Workspace is bind-mounted at `/ws/` inside the container. All build/test commands must run inside it.
+Use Docker to build, run, and test the workspace on an x86 machine. All build/test commands must run inside it. Workspace is bind-mounted at `/ws/` inside the container.
 
 ```bash
 bash docker/build.bash                              # build image (first time / Dockerfile changes)
-docker compose -f docker/docker-compose.yaml up -d  # start container
-docker exec -it mulsbc-arm64-dev bash               # enter container
+docker compose -f docker/docker-compose.yaml up -d  # start container (could be already running)
+docker exec mulsbc-arm64-dev bash                   # enter container
 docker compose -f docker/docker-compose.yaml down   # stop container
 ```
 
 ## Build Commands
 
 ```bash
-# Source ROS 2
-source /opt/ros/$ROS_DISTRO$/setup.bash
-
-# Build entire workspace
 colcon build --symlink-install
-
-# Source the workspace overlay after building
 source install/local_setup.bash
 ```
 
-**Build order matters:** `pi3hat_moteus_int_msgs` must be built first (all other packages depend on it).
+**Build order matters:** `pi3hat_moteus_int_msgs` must build first (all other packages depend on it).
 
 ## Launch
 
 ```bash
-ros2 launch pi3hat_hw_interface moteu_pi3hat_interface.launch.py \
-  urdf_file:=Omnicar.xacro \
-  conf_file:=Omnicar.yaml
+ros2 launch pi3hat_hw_interface moteus_pi3hat_interface.launch.py \
+  urdf_file:=omnicar.xacro \
+  conf_file:=omnicar.yaml
 ```
 
-Default launch args are `JumpingLeg2d.xacro` / `jump_leg.yaml`. URDF files live in `pi3hat_hw_interface/urdf/`, config YAMLs in `pi3hat_hw_interface/config/`.
+Default args are `omnicar.xacro` / `omnicar.yaml`. URDF files in `pi3hat_hw_interface/urdf/`, config YAMLs in `pi3hat_hw_interface/config/`.
 
-The launch file starts `ros2_control_node` (controller_manager) which loads the hardware plugin and spawns controllers defined in the YAML.
-
-## Architecture
-
-### ros2_control Pipeline
+## Package Dependency Graph
 
 ```
-Commands (topics)  →  Controllers  →  Hardware Interface  →  CAN-FD  →  Moteus Motors
-                                      ↕ (read/write cycle)
-Feedback (topics)  ←  Broadcasters ←  Hardware Interface  ←  CAN-FD  ←  Moteus Motors
+pi3hat_moteus_int_msgs          <- Custom .msg definitions (base dependency)
+  ^
+moteus_pi3hat                   <- Low-level C++ library wrapping Pi3Hat CAN-FD (header-only, needs bcm_host)
+  ^
+pi3hat_hw_interface             <- ros2_control SystemInterface plugin
+  ^
+omni_controller                 <- Unified omnidirectional controller (wheels IK + leg commands + state broadcasting)
+pi3hat_base_controller          <- Standalone joint controller + state/distributor broadcasters
 ```
 
-### Package Dependency Graph
+## Key Source Files
 
-```
-pi3hat_moteus_int_msgs          ← Custom .msg definitions (base dependency)
-  ↑
-moteus_pi3hat                   ← Low-level C++ library wrapping Pi3Hat CAN-FD (header-only, needs bcm_host)
-  ↑
-pi3hat_hw_interface             ← ros2_control SystemInterface plugin
-  ↑
-pi3hat_base_controller          ← Joint controller + state/distributor broadcasters
-omni_vel_controller             ← Omnidirectional wheel velocity controller
-```
+- **Hardware interface:** `src/pi3hat/pi3hat_hw_interface/src/moteus_pi3hat_interface.cpp` — `on_init/on_configure/on_activate/read/write` cycle
+- **Actuator manager:** `src/pi3hat/pi3hat_hw_interface/src/actuator_manager.cpp` — per-motor CAN-FD wrapper, PID config, transmission ratio conversion
+- **OmniController:** `src/omni_controller/src/omni_controller.cpp` — unified controller (wheel IK + legs + state broadcasting)
+- **Wheel IK:** `src/omni_controller/include/omni_controller/wheel_ik.hpp` — omnidirectional inverse kinematics
+- **Messages:** `src/pi3hat/pi3hat_moteus_int_msgs/msg/` — `JointsCommand`, `JointsStates`, `OmniMulinexCommand`, `PacketPass`, `DistributorsState`
+- **URDF configs:** `src/pi3hat/pi3hat_hw_interface/urdf/` — `.xacro` files defining motor/distributor configuration
+- **Controller YAMLs:** `src/pi3hat/pi3hat_hw_interface/config/` — controller manager configuration
 
-### Packages
+## Hardware Configuration (URDF)
 
-**`pi3hat_moteus_int_msgs`** — Custom messages: `JointsCommand`, `JointsStates`, `OmniMulinexCommand`, `PacketPass`, `DistributorsState`.
-
-**`pi3hat_hw_interface`** — The `MoteusPi3Hat_Interface` SystemInterface plugin. Key classes:
-- `moteus_pi3hat_interface` — Implements `on_init/on_configure/on_activate/read/write`. Parses URDF for motor and distributor configuration. Manages IMU if `request_attitude=1`.
-- `actuator_manager` — Per-motor wrapper around mjbots `Controller`. Handles PID configuration via CAN diagnostic commands, transmission ratio conversion, secondary encoder support, and CAN-FD frame encoding/decoding.
-- `elem_info_parsers` — URDF parameter parsing for Pi3Hat config, actuators, and power distributors.
-
-**`pi3hat_base_controller`** — Four ros2_control plugins:
-- `Pi3Hat_Joint_Group_Controller` — Subscribes to `~/command` (JointsCommand), maps to hardware command interfaces. Supports `kp_scale`/`kd_scale` gain scaling.
-- `Pi3Hat_State_Broadcaster` — Publishes `state_broadcaster/joints_state` (JointsStates) and `state_broadcaster/performance_indexes` (PacketPass).
-- `Distributor_State_Broadcaster` — Publishes `distributor_state_broadcaster/distributors_state` (DistributorsState).
-- `Debug_Broadcaster` — Debug echoing of joint info.
-
-**`omni_vel_controller`** — `Omni_Vel_Controller` plugin. Subscribes to `~/input_odom` (OmniMulinexCommand), computes 4-wheel omnidirectional inverse kinematics, publishes JointsCommand. Key params: `mecanum_angle`, `wheel_rad`, `feet_type`, `homing_duration`.
-
-### Hardware Configuration (URDF)
-
-Robot configuration is defined in `.xacro` files. Each joint element configures a Moteus motor:
-- `id`/`bus` — CAN ID and Pi3Hat bus number (1-5)
-- `KP`/`KD`/`KI` — Low-level PID gains (configured at startup via diagnostic commands; **must not exceed 16-bit representability**)
-- `actuator_trasmission` — Motor-to-joint gear ratio (all motor quantities are converted through this)
-- `second_encoder_trasmission` — Joint-to-secondary-encoder ratio (0 disables secondary encoder)
-- `position_offset`, `max_pos_limit`/`min_pos_limit` — Joint-space offset and saturation (0 disables limits)
+Each joint in `.xacro` configures a Moteus motor:
+- `id`/`bus` — CAN ID and Pi3Hat bus (1-5)
+- `KP`/`KD`/`KI` — Low-level PID gains (**must not exceed 16-bit representability**)
+- `actuator_trasmission` — Motor-to-joint gear ratio
+- `second_encoder_trasmission` — Joint-to-secondary-encoder ratio (0 disables)
+- `position_offset`, `max_pos_limit`/`min_pos_limit` — Joint-space offset and limits (0 disables)
 - `type` — `motor` or `power_dist`
 
-Controller manager YAML (e.g. `Omnicar.yaml`) sets `update_rate` (typically 500 Hz) and lists which controllers to load with their parameters.
+## Hardware State/Command Interfaces
 
-### Robot Configurations
-
-- **Omnicar** (`Omnicar.xacro` + `Omnicar.yaml`) — 4 omniwheels + 2 power distributors. Motors on buses 1-4, distributors on bus 5.
-- **JumpingLeg2d** — 2-DOF leg (HIP + KNEE).
-- **SingleJoint/SingleJointSE** — Single motor test setups.
-
-### Hardware State/Command Interfaces
-
-Beyond standard `position`/`velocity`/`effort`, the hardware interface exposes custom interfaces:
+Beyond standard `position`/`velocity`/`effort`:
 - **Commands:** `kp_scale_value`, `kd_scale_value` (runtime gain scaling)
 - **States:** `temperature`, `q_current`, `d_current`, `motor_temperature`, `abs_position`, `power`, `validity_loss`, `package_loss`, `cycle_duration`
 
-## Raspberry Pi Prerequisites
+## Robot Configurations
 
-- Ubuntu 22.04 with RT kernel on Raspberry Pi 4
-- `bcm_host` library: `sudo ln /usr/lib/aarch64-linux-gnu/libbcm_host.so /usr/lib/libbcm_host.so.0`
-- `ros-humble-ros2-control`, `ros-humble-ros2-controllers`, `ros-humble-xacro`
-- Python moteus library: `pip3 install moteus==0.3.67 moteus_pi3hat`
-
-## Key Details
-
-- **ROS_DOMAIN_ID**: Must match between robot and operator PC (parent workspace uses 10)
-- **RMW_IMPLEMENTATION**: Use `rmw_cyclonedds_cpp`.
-- **CPU affinity**: Hardware interface pins to CPU 1 for real-time determinism
-- **CAN-FD**: 64-byte frames with configurable bit-resolution per field
-- Pi3Hat r4.4 or newer required
+- **Omnicar** (`omnicar.xacro` + `omnicar.yaml`) — 4 mecanum wheels + 2 power distributors. Motors on buses 1-4, distributors on bus 5.
+- **Omniquad** (`omniquad.xacro` + `omniquad.yaml`) — 4 mecanum wheels + 8 leg joints (LF/LH/RF/RH HFE+KFE). No distributors.

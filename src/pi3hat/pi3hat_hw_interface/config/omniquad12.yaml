@@ -1,0 +1,121 @@
+controller_manager:
+    ros__parameters:
+        update_rate: 500
+        
+        state_broadcaster:
+            type: pi3hat_state_broadcaster/Pi3Hat_State_Broadcaster
+        
+        imu_sensor:
+            type: imu_sensor_broadcaster/IMUSensorBroadcaster
+
+        joint_controller:
+            type: pi3hat_joint_group_controller/Pi3Hat_Joint_Group_Controller
+
+        omni_controller:
+            type: omni_controller/OmniController
+
+state_broadcaster:
+    ros__parameters:
+        joints:
+            - "LF_HFE"
+            - "LF_KFE"
+            - "LH_HFE"
+            - "LH_KFE"
+            - "RF_HFE"
+            - "RF_KFE"
+            - "RH_HFE"
+            - "RH_KFE"
+            - "LF_WHEEL_JNT"
+            - "LH_WHEEL_JNT"
+            - "RF_WHEEL_JNT"
+            - "RH_WHEEL_JNT"
+        # second_encoders:
+        #     - "LF_HFE"
+        #     - "LF_KFE"
+        #     - "LH_HFE"
+        #     - "LH_KFE"
+        #     - "RF_HFE"
+        #     - "RF_KFE"
+        #     - "RH_HFE"
+        #     - "RH_KFE"
+
+imu_sensor:
+    ros__parameters:
+        frame_id: imu_link
+        sensor_name: Pi3Hat
+
+joint_controller:
+    ros__parameters:
+        joints:
+            - "LF_HFE"
+            - "LF_KFE"
+            - "LH_HFE"
+            - "LH_KFE"
+            - "RF_HFE"
+            - "RF_KFE"
+            - "RH_HFE"
+            - "RH_KFE"
+            - "LF_WHEEL_JNT"
+            - "LH_WHEEL_JNT"
+            - "RF_WHEEL_JNT"
+            - "RH_WHEEL_JNT"
+
+omni_controller:
+    ros__parameters:
+        wheel_joints:
+            LF: LF_WHEEL_JNT
+            LH: LH_WHEEL_JNT
+            RF: RF_WHEEL_JNT
+            RH: RH_WHEEL_JNT
+
+        leg_joints:
+            - LF_HFE
+            - LF_KFE
+            - LH_HFE
+            - LH_KFE
+            - RF_HFE
+            - RF_KFE
+            - RH_HFE
+            - RH_KFE
+
+        # distributor_names:
+        #     - Distributor_R
+        #     - Distributor_L
+
+        # second_encoder_joints:
+        #     - LF_HFE
+        #     - LF_KFE
+        #     - LH_HFE
+        #     - LH_KFE
+        #     - RF_HFE
+        #     - RF_KFE
+        #     - RH_HFE
+        #     - RH_KFE
+
+        # Homing
+        homing_phases: [5.0]
+        homing_config:
+            LF_HFE: {qi: 0.0, qf:  2.0}
+            LF_KFE: {qi: 0.0, qf: -1.0}
+            LH_HFE: {qi: 0.0, qf: -2.0}
+            LH_KFE: {qi: 0.0, qf:  1.0}
+            RF_HFE: {qi: 0.0, qf: -2.0}
+            RF_KFE: {qi: 0.0, qf:  1.0}
+            RH_HFE: {qi: 0.0, qf:  2.0}
+            RH_KFE: {qi: 0.0, qf: -1.0}
+        
+        # Wheel IK
+        feet_type: mecanum
+        wheel_rad: 0.05
+        driveshaft_x: 0.235
+        driveshaft_y: 0.188
+        mecanum_angle: 135.0
+
+        # Communication
+        input_frequency: 100
+        BestEffort_QOS: true
+
+        # Features
+        sim: false
+        pub_odom: false
+        pub_performance: true

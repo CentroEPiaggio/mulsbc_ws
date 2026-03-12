@@ -13,18 +13,80 @@ namespace pi3hat_hw_interface
     namespace moteus_pi3hat_interface
     {
 
-         
+
         MoteusPi3Hat_Interface::MoteusPi3Hat_Interface()
         {
-            
+
+        };
+
+        void MoteusPi3Hat_Interface::sendStopCycles(const char* caller)
+        {
+            bool expected = false;
+            if (!motors_stopped_.compare_exchange_strong(expected, true))
+            {
+                RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),
+                    "[%s] Motors already stopped, skipping", caller);
+                return;
+            }
+
+            if (!pi3hat_transport_)
+            {
+                RCLCPP_WARN(rclcpp::get_logger(LOGGER_NAME),
+                    "[%s] Transport is null, cannot send stop", caller);
+                return;
+            }
+
+            // Bounded drain: wait up to kStopTimeoutMs for any pending async callback
+            {
+                auto deadline = std::chrono::steady_clock::now() +
+                    std::chrono::milliseconds(kStopTimeoutMs);
+                while (clb_as_.try_consume(&t_s_read_) == -1)
+                {
+                    if (std::chrono::steady_clock::now() >= deadline)
+                    {
+                        RCLCPP_WARN(rclcpp::get_logger(LOGGER_NAME),
+                            "[%s] Timed out waiting for pending async callback", caller);
+                        break;
+                    }
+                    std::this_thread::sleep_for(std::chrono::microseconds(100));
+                }
+            }
+
+            RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),
+                "[%s] Sending %d stop cycles", caller, NUM_STOP);
+
+            for (int i = 0; i < NUM_STOP; i++)
+            {
+                for (auto idx : actuator_index_)
+                    actuators_[idx]->MakeStop();
+
+                try
+                {
+                    mjbots::moteus::BlockingCallback cbk;
+                    pi3hat_transport_->Cycle(
+                        command_frames_.data(),
+                        command_frames_.size(),
+                        &replies_,
+                        &filtered_IMU_,
+                        nullptr,
+                        nullptr,
+                        cbk.callback()
+                    );
+                    cbk.Wait();
+                }
+                catch (const std::logic_error& e)
+                {
+                    RCLCPP_WARN(rclcpp::get_logger(LOGGER_NAME),
+                        "[%s] Stop cycle %d: %s", caller, i, e.what());
+                }
+            }
+
+            RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),
+                "[%s] Stop cycles complete", caller);
         };
         MoteusPi3Hat_Interface::~MoteusPi3Hat_Interface()
         {
-           
-
-
-
-           
+            sendStopCycles("destructor");
         };
 
         CallbackReturn MoteusPi3Hat_Interface::on_init(const hardware_interface::HardwareInfo & info)
@@ -257,6 +319,8 @@ namespace pi3hat_hw_interface
         
         CallbackReturn MoteusPi3Hat_Interface::on_activate(const rclcpp_lifecycle::State&)
         {
+            motors_stopped_.store(false);
+            first_cycle_ = true;
             pi3hat_transport_.reset();
             if(attitude_requested_)
             {
@@ -286,58 +350,43 @@ namespace pi3hat_hw_interface
 
                 cbk.Wait();
             }
-            
-            
+
+            // Parse replies from the stop cycle to get current positions,
+            // then initialize command references to the measured state (with kp=0, kd=0)
+            // so the first write() doesn't drive motors to an arbitrary position.
+            for(const auto& rep : replies_)
+            {
+                for(auto i : actuator_index_)
+                {
+                    if(rep.source == actuators_[i]->GetActuatorId())
+                    {
+                        actuators_[i]->ParseSttFromReply(rep);
+                        actuators_[i]->SnapCommandToState();
+                        break;
+                    }
+                }
+            }
+
             return CallbackReturn::SUCCESS;
         };
         
         CallbackReturn MoteusPi3Hat_Interface::on_deactivate(const rclcpp_lifecycle::State&)
         {
             RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),"Start Actuator Deactivation Procedure");
-            // for(auto i : actuator_index_)
-            // {
-            //     actuators_[i]->MakeStop();
-            // }
-            
-            // pi3hat_transport_->BlockingCycle(
-            //     command_frames_.data(),
-            //     command_frames_.size(),
-            //     &replies_
-            // );
+            sendStopCycles("on_deactivate");
             return CallbackReturn::SUCCESS;
         };
         
         CallbackReturn MoteusPi3Hat_Interface::on_shutdown(const rclcpp_lifecycle::State&)
         {
-            RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),"Start Actuator Shuthdown Procedure");
-            while(clb_as_.try_consume(&t_s_read_) == -1);
-            for(auto i : actuator_index_)
-            {
-                actuators_[i]->MakeStop();
-            }
-            
-            {
-                mjbots::moteus::BlockingCallback cbk;
-
-                pi3hat_transport_->Cycle(
-                        command_frames_.data(),
-                        command_frames_.size(),
-                        &replies_,
-                        &filtered_IMU_,
-                        nullptr,
-                        nullptr,
-                        cbk.callback()
-                    );
-
-                cbk.Wait();
-            }
-
+            RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),"Start Actuator Shutdown Procedure");
+            sendStopCycles("on_shutdown");
             return CallbackReturn::SUCCESS;
         };
 
          CallbackReturn MoteusPi3Hat_Interface::on_error(const rclcpp_lifecycle::State&)
         {
-            
+            sendStopCycles("on_error");
             return CallbackReturn::SUCCESS;
         };
 

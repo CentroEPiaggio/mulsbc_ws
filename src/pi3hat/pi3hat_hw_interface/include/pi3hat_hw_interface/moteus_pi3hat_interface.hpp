@@ -17,6 +17,8 @@
 #include <functional>
 #include <stdio.h>
 #include <map>
+#include <atomic>
+#include <thread>
 
 #include "eigen3/Eigen/Dense"
 #include "eigen3/Eigen/Core"
@@ -188,6 +190,10 @@ namespace pi3hat_hw_interface
                 bool first_cycle_ = true, attitude_requested_ = false;
                 AsyncCallback clb_as_;
                 mjbots::pi3hat::Pi3HatMoteusTransport::Options p_opt_;
+
+                std::atomic<bool> motors_stopped_{false};
+                static constexpr int kStopTimeoutMs = 100;
+                void sendStopCycles(const char* caller);
 
                 SafetyState safety_state_ = SafetyState::NORMAL;
                 double safety_state_value_ = 0.0;

@@ -62,11 +62,11 @@ namespace pi3hat_hw_interface
         
         struct CommandStruct
         {
-            double position = 0.0;
+            double position = std::nan("1");
             double velocity = 0.0;
             double effort = 0.0;
-            double kp_scale = 1.0;
-            double kd_scale = 1.0;
+            double kp_scale = 0.0;
+            double kd_scale = 0.0;
         };
         struct StateStruct
         {
@@ -246,6 +246,15 @@ namespace pi3hat_hw_interface
                     *cmd_frame_ = c_->MakeQuery(&query_format_);
                 }
                 void MakeStop();
+                /// Initialize cmd_ position from measured state, with gains at zero
+                void SnapCommandToState()
+                {
+                    cmd_.position = stt_.position;
+                    cmd_.velocity = 0.0;
+                    cmd_.effort = 0.0;
+                    cmd_.kp_scale = 0.0;
+                    cmd_.kd_scale = 0.0;
+                }
                 void SendExact()
                 {
                     c_->DiagnosticWrite("d exact 0.0\n");
