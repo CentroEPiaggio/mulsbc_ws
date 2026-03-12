@@ -424,6 +424,7 @@ namespace pi3hat_hw_interface
                 }
 
             }
+            UpdateTemperatureEMA();
             return true;
         };
         void Actuator_Manager::MakeCommand()
@@ -554,7 +555,8 @@ namespace pi3hat_hw_interface
                 stt_.temperature = result.temperature;
             if(qf_.energy != Resolution::kIgnore)
                 stt_.energy = result.energy;
-                
+
+            UpdateVoltageEMA();
             return true;
         }
     }

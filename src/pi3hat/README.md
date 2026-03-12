@@ -206,6 +206,54 @@ ros2 launch pi3hat_hw_interface start_MJBots_Pi3Hat_hw_Interface.launch.py urdf_
 ```
 the configuration and urdf file must be contained respectively in pi3hat_hw_interface/config and pi3hat_hw_interface/urdf.
 
+## Safety Layer
+
+The hardware interface implements a safety layer that monitors motor driver temperatures and battery voltage during the `read()` cycle. When thresholds are exceeded the system transitions through a state machine and stops the actuators before returning an error to the controller manager.
+
+### Safety State Machine
+
+```
+NORMAL ──(temp > warning)──► WARNING ──(temp > critical OR volt < min)──► CRITICAL ──(delay elapsed)──► SHUTDOWN
+  ▲                              │                                              │
+  └──(temp < warning)────────────┘                                              └── write() sends MakeStop() to all actuators
+```
+
+| State | Value | Behaviour |
+|-------|-------|-----------|
+| `NORMAL` | 0 | All checks pass, normal operation |
+| `WARNING` | 1 | Temperature elevated; throttled log at ~1 Hz; commands still sent |
+| `CRITICAL` | 2 | Threshold violated; `MakeStop()` sent every cycle; shutdown timer starts |
+| `SHUTDOWN` | 3 | `shutdown_delay` elapsed; `write()` keeps sending `MakeStop()`; `read()` returns `ERROR` |
+
+The system can recover from `WARNING` back to `NORMAL` if temperature drops below the warning threshold. `CRITICAL` and `SHUTDOWN` require a system restart.
+
+### Monitored Quantities
+
+- **Driver temperature** — FET temperature reported by each Moteus driver, smoothed with an exponential moving average (EMA, α ≈ 0.004, ~1 s window at 500 Hz). The **maximum** across all actuators is compared against the thresholds.
+- **Battery voltage** — output voltage reported by each power distributor, smoothed with the same EMA. The **minimum** across all distributors is compared against the threshold.
+
+### Configuration Parameters (URDF `<hardware>` block)
+
+| Parameter | Default | Unit | Description |
+|-----------|---------|------|-------------|
+| `temp_warning_threshold` | 50 | °C | Temperature that triggers `WARNING` |
+| `temp_critical_threshold` | 57 | °C | Temperature that triggers `CRITICAL` |
+| `battery_min_voltage` | 24.0 | V | Voltage below which `CRITICAL` is triggered |
+| `shutdown_delay` | 3.0 | s | Time spent in `CRITICAL` before transitioning to `SHUTDOWN` |
+
+Example (Omnicar defaults):
+
+```xml
+<param name="temp_warning_threshold">50</param>
+<param name="temp_critical_threshold">57</param>
+<param name="battery_min_voltage">24.0</param>
+<param name="shutdown_delay">3.0</param>
+```
+
+### Safety State Interface
+
+The current safety state is exposed as a hardware state interface (`Pi3Hat/safety_state`, type `double`) with the numeric value of the enum (0–3). Controllers and broadcasters can read this interface to monitor the safety status at runtime.
+
 ## References
 
 - [Moteus Dirver](https://github.com/mjbots/moteus/blob/main/docs/reference.md)

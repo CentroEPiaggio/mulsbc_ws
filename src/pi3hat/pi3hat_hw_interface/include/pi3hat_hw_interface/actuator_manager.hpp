@@ -259,7 +259,16 @@ namespace pi3hat_hw_interface
                 {
                     c_->DiagnosticWrite("d exact 0.0\n");
                 }
+                double GetTemperature() const { return avg_temperature_; }
+                void UpdateTemperatureEMA()
+                {
+                    if(first_temp_read_) { avg_temperature_ = stt_.temperature; first_temp_read_ = false; }
+                    else { avg_temperature_ += kTempAlpha * (stt_.temperature - avg_temperature_); }
+                }
             private:
+                static constexpr double kTempAlpha = 2.0 / (500.0 + 1.0);  // ~1s EMA at 500Hz
+                double avg_temperature_ = 0.0;
+                bool first_temp_read_ = true;
                 mjbots::moteus::Resolution parse_res(int res)
                 {
                     if(res == 0)
@@ -405,7 +414,16 @@ namespace pi3hat_hw_interface
                 {
                     return id_;
                 };
+                double GetVoltage() const { return avg_voltage_; }
+                void UpdateVoltageEMA()
+                {
+                    if(first_voltage_read_) { avg_voltage_ = stt_.voltage; first_voltage_read_ = false; }
+                    else { avg_voltage_ += kVoltAlpha * (stt_.voltage - avg_voltage_); }
+                }
             private:
+                static constexpr double kVoltAlpha = 2.0 / (500.0 + 1.0);  // ~1s EMA at 500Hz
+                double avg_voltage_ = 0.0;
+                bool first_voltage_read_ = true;
                 mjbots::moteus::Resolution parse_res(int res)
                 {
                     if(res == 0)
