@@ -2,6 +2,7 @@
 #include "pluginlib/class_list_macros.hpp"
 #include "pi3hat_hw_interface/elem_info_parsers.hpp"
 #include <cmath>
+#include <limits>
 
 #define LOGGER_NAME "MoteusPi3Hat_Interface"
 #define CPU 1
@@ -38,10 +39,26 @@ namespace pi3hat_hw_interface
             unsigned int bus,id, se_source;
             pi3hat_hw_interface::actuator_manager::ActuatorOptions act_opt;
             pi3hat_hw_interface::power_dist_manager::DistributorQuery dis_opt;
+
+            // Extract safety parameters before passing to pi3hat parser (which throws on unknown keys)
+            auto hw_params = info.hardware_parameters;
+            auto extract_param = [](auto& map, const std::string& key, double def) -> double {
+                auto it = map.find(key);
+                if (it != map.end()) { double v = std::stod(it->second); map.erase(it); return v; }
+                return def;
+            };
+            temp_warning_threshold_ = extract_param(hw_params, "temp_warning_threshold", 80.0);
+            temp_critical_threshold_ = extract_param(hw_params, "temp_critical_threshold", 100.0);
+            battery_min_voltage_ = extract_param(hw_params, "battery_min_voltage", 18.0);
+            shutdown_delay_ = extract_param(hw_params, "shutdown_delay", 3.0);
+            RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),
+                "Safety thresholds: temp_warn=%.1f C, temp_crit=%.1f C, batt_min=%.1f V, shutdown_delay=%.1f s",
+                temp_warning_threshold_, temp_critical_threshold_, battery_min_voltage_, shutdown_delay_);
+
             // parse  the option from the info
             try
             {
-                pi3hat_parser->parse_map(info.hardware_parameters);
+                pi3hat_parser->parse_map(hw_params);
                 pi3hat_parser->get_servo_map(info);
             }
             catch(const std::exception& e)
@@ -402,6 +419,12 @@ namespace pi3hat_hw_interface
                     &cycle_duration_
                 )
             );
+            stt_int.emplace_back(
+                hardware_interface::StateInterface(
+                    "Pi3Hat","safety_state",
+                    &safety_state_value_
+                )
+            );
             for(auto i: actuator_index_)
             {
                 actuators_[i]->ExportSttInt(stt_int);
@@ -512,19 +535,128 @@ namespace pi3hat_hw_interface
                 first_cycle_ = false;
             }
 
+            // Safety monitoring: check temperatures and voltages
+            {
+                double max_temp = 0.0;
+                std::string hottest_driver;
+                for (auto i : actuator_index_)
+                {
+                    double t = actuators_[i]->GetTemperature();
+                    if (t > max_temp)
+                    {
+                        max_temp = t;
+                        hottest_driver = actuators_[i]->get_joint_name();
+                    }
+                }
+
+                double min_voltage = std::numeric_limits<double>::max();
+                std::string lowest_dist;
+                for (auto i : distributor_index_)
+                {
+                    double v = distributors_[i]->GetVoltage();
+                    if (v > 0.0 && v < min_voltage)
+                    {
+                        min_voltage = v;
+                        lowest_dist = distributors_[i]->get_joint_name();
+                    }
+                }
+                if (min_voltage == std::numeric_limits<double>::max())
+                    min_voltage = 0.0;  // no valid voltage readings
+
+                bool temp_critical = max_temp > temp_critical_threshold_;
+                bool voltage_critical = min_voltage > 0.0 && min_voltage < battery_min_voltage_;
+                bool temp_warning = max_temp > temp_warning_threshold_;
+
+                switch (safety_state_)
+                {
+                    case SafetyState::NORMAL:
+                        if (temp_critical || voltage_critical)
+                        {
+                            safety_state_ = SafetyState::CRITICAL;
+                            critical_start_time_ = std::chrono::steady_clock::now();
+                            if (temp_critical)
+                                RCLCPP_ERROR(rclcpp::get_logger(LOGGER_NAME),
+                                    "CRITICAL: Driver %s temperature %.1f C exceeds critical threshold %.1f C",
+                                    hottest_driver.c_str(), max_temp, temp_critical_threshold_);
+                            if (voltage_critical)
+                                RCLCPP_ERROR(rclcpp::get_logger(LOGGER_NAME),
+                                    "CRITICAL: Distributor %s voltage %.1f V below minimum %.1f V",
+                                    lowest_dist.c_str(), min_voltage, battery_min_voltage_);
+                        }
+                        else if (temp_warning)
+                        {
+                            safety_state_ = SafetyState::WARNING;
+                        }
+                        break;
+
+                    case SafetyState::WARNING:
+                        if (temp_critical || voltage_critical)
+                        {
+                            safety_state_ = SafetyState::CRITICAL;
+                            critical_start_time_ = std::chrono::steady_clock::now();
+                            if (temp_critical)
+                                RCLCPP_ERROR(rclcpp::get_logger(LOGGER_NAME),
+                                    "CRITICAL: Driver %s temperature %.1f C exceeds critical threshold %.1f C",
+                                    hottest_driver.c_str(), max_temp, temp_critical_threshold_);
+                            if (voltage_critical)
+                                RCLCPP_ERROR(rclcpp::get_logger(LOGGER_NAME),
+                                    "CRITICAL: Distributor %s voltage %.1f V below minimum %.1f V",
+                                    lowest_dist.c_str(), min_voltage, battery_min_voltage_);
+                        }
+                        else if (!temp_warning)
+                        {
+                            safety_state_ = SafetyState::NORMAL;
+                        }
+                        else
+                        {
+                            warn_throttle_counter_++;
+                            if (warn_throttle_counter_ >= 500)  // ~1 Hz at 500 Hz loop
+                            {
+                                warn_throttle_counter_ = 0;
+                                RCLCPP_WARN(rclcpp::get_logger(LOGGER_NAME),
+                                    "WARNING: Driver %s temperature %.1f C exceeds warning threshold %.1f C",
+                                    hottest_driver.c_str(), max_temp, temp_warning_threshold_);
+                            }
+                        }
+                        break;
+
+                    case SafetyState::CRITICAL:
+                    {
+                        auto elapsed = std::chrono::steady_clock::now() - critical_start_time_;
+                        if (std::chrono::duration<double>(elapsed).count() >= shutdown_delay_)
+                        {
+                            safety_state_ = SafetyState::SHUTDOWN;
+                            RCLCPP_ERROR(rclcpp::get_logger(LOGGER_NAME),
+                                "SHUTDOWN: Safety shutdown delay (%.1f s) elapsed. Returning ERROR.", shutdown_delay_);
+                        }
+                        break;
+                    }
+
+                    case SafetyState::SHUTDOWN:
+                        break;
+                }
+
+                safety_state_value_ = static_cast<double>(safety_state_);
+
+                if (safety_state_ == SafetyState::SHUTDOWN)
+                    return hardware_interface::return_type::ERROR;
+            }
+
             return hardware_interface::return_type::OK;
         };
 
-        hardware_interface::return_type MoteusPi3Hat_Interface::write(const rclcpp::Time & , const rclcpp::Duration & ) 
+        hardware_interface::return_type MoteusPi3Hat_Interface::write(const rclcpp::Time & , const rclcpp::Duration & )
         {
             if(invalid_cycle_ == 0.0)
             {
-                // RCLCPP_WARN(rclcpp::get_logger(LOGGER_NAME), "send_data");
+                bool safety_stop = (safety_state_ == SafetyState::CRITICAL || safety_state_ == SafetyState::SHUTDOWN);
                 for(auto i : actuator_index_)
-                    actuators_[i]->MakeCommand();
-                    // RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME),"Command for actuator %d %d",
-                    //     command_frames_[i].expected_reply_size ,command_frames_[i].reply_required
-                    // );
+                {
+                    if (safety_stop)
+                        actuators_[i]->MakeStop();
+                    else
+                        actuators_[i]->MakeCommand();
+                }
                 for(auto i : distributor_index_)
                     distributors_[i]->MakeQuery();
                 pi3hat_transport_->Cycle(

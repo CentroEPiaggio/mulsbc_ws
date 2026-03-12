@@ -86,6 +86,7 @@ namespace pi3hat_hw_interface
 {
     namespace moteus_pi3hat_interface
     {
+        enum class SafetyState { NORMAL = 0, WARNING = 1, CRITICAL = 2, SHUTDOWN = 3 };
         class AsyncCallback
         {
             public:
@@ -187,6 +188,15 @@ namespace pi3hat_hw_interface
                 bool first_cycle_ = true, attitude_requested_ = false;
                 AsyncCallback clb_as_;
                 mjbots::pi3hat::Pi3HatMoteusTransport::Options p_opt_;
+
+                SafetyState safety_state_ = SafetyState::NORMAL;
+                double safety_state_value_ = 0.0;
+                double temp_warning_threshold_ = 80.0;
+                double temp_critical_threshold_ = 100.0;
+                double battery_min_voltage_ = 18.0;
+                double shutdown_delay_ = 3.0;
+                std::chrono::steady_clock::time_point critical_start_time_;
+                int warn_throttle_counter_ = 0;
         };
     }
 }
