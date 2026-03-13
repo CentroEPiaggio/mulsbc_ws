@@ -25,6 +25,10 @@ It:
 | `sim` | `bool` | `false` | Simulation mode (velocity-only command interfaces) |
 | `pub_odom` | `bool` | `false` | Publish wheel odometry |
 | `pub_performance` | `bool` | `true` | Publish performance indexes |
+| `homing_phases` | `double[]` | `[]` | Duration(s) for homing phases [s]. 1 entry = single phase (qi→qf), 2 entries = two phases (qi→qm, qm→qf). Empty disables homing. |
+| `homing_config.<joint>.qi` | `double` | `0.0` | Initial position for homing trajectory [rad] (ignored in phase 1 — uses current position) |
+| `homing_config.<joint>.qf` | `double` | `0.0` | Final position for homing trajectory [rad] |
+| `homing_config.<joint>.qm` | `double` | `0.0` | Mid position for two-phase homing [rad] (only used when `homing_phases` has 2 entries) |
 
 ## Topics
 
@@ -43,6 +47,7 @@ It:
 |---|---|---|
 | `~/activate_srv` | `SetBool` | Transition from INACTIVE to ACTIVE (`data: true`) |
 | `~/emergency_srv` | `SetBool` | Transition from ACTIVE to INACTIVE (`data: true`) |
+| `~/homing_srv` | `SetBool` | Start leg homing sequence (`data: true`). Only available when `homing_phases` is configured and legs are present. |
 
 ## State Machine
 
@@ -55,10 +60,13 @@ on_activate()
      │                                              │
      ├──── ~/emergency_srv (data: true) ◄───────────┤
      └──── 10+ deadline misses (auto) ◄─────────────┘
+
+ INACTIVE or ACTIVE ── ~/homing_srv (data: true) ──► HOMING ──(complete)──► ACTIVE
 ```
 
 - **INACTIVE**: All motor commands zeroed (velocity=0, kp_scale=0, kd_scale=1). State publishing continues.
 - **ACTIVE**: Wheel IK and leg commands written to hardware.
+- **HOMING**: Legs follow a time-parameterized trajectory (qi→qf or qi→qm→qf). Wheels are locked (velocity=0, kp_scale=1). Transitions to ACTIVE when complete.
 
 ## Wheel IK Types
 

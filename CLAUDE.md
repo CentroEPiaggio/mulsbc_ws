@@ -80,4 +80,4 @@ Beyond standard `position`/`velocity`/`effort`:
 ## Robot Configurations
 
 - **Omnicar** (`omnicar.xacro` + `omnicar.yaml`) — 4 mecanum wheels + 2 power distributors. Motors on buses 1-4, distributors on bus 5.
-- **Omniquad** (`omniquad.xacro` + `omniquad.yaml`) — 4 mecanum wheels + 8 leg joints (LF/LH/RF/RH HFE+KFE). No distributors.
+- **Omniquad** (`omniquad12.xacro` + `omniquad12.yaml`) — 4 mecanum wheels + 8 leg joints (LF/LH/RF/RH HFE+KFE) + 2 power distributors.

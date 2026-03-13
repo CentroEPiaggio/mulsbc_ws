@@ -31,9 +31,9 @@ pi3hat r 4.4 or newer
 
 4. install ros2 control framework and xacro
    ```shell
-   sudo apt install ros-$ROS_DISTRO$-ros2-control
-   sudo apt install ros-$ROS_DISTRO$-ros2-controllers
-   sudo apt install ros-$ROS_DISTRO$-xacro
+   sudo apt install ros-$ROS_DISTRO-ros2-control
+   sudo apt install ros-$ROS_DISTRO-ros2-controllers
+   sudo apt install ros-$ROS_DISTRO-xacro
    ```
 
 5. install pip3 and the moteus libraries:
@@ -62,7 +62,7 @@ pi3hat r 4.4 or newer
 
 4. **pi3hat_base_controllers**: contains two base controllers. The joints_controller can be use to control each joint indipendently enforsing the drivers low level PID control using the JointCommand messages. The state_broadcaster controller can be use to monitor the joints states and the low level communication state using the JointStates and the PacketPass Messages
 
-5. **pi3hat_omni_controller**: contains a controller to perform the omni_quad Demos.
+5. **omni_controller**: contains a controller to perform the omni_quad Demos.
 
 ## Interface configuration file
 
@@ -77,66 +77,89 @@ An example of the URDF file is:
 
 ```xml
 <?xml version="1.0" ?>
-<robot name="mulinex"  xmlns:xacro="http://ros.org/wiki/xacro">
+<robot name="omnicar"  xmlns:xacro="http://ros.org/wiki/xacro">
+
+    <xacro:macro name="wheel_joint" params="name id bus">
+        <joint name="${name}">
+            <param name="id">${id}</param>
+            <param name="bus">${bus}</param>
+            <param name="second_encoder_source">1</param>
+            <param name="type">motor</param>
+
+            <param name="KP">100.0</param>
+            <param name="KD">1.0</param>
+            <param name="KI">0.0</param>
+            <param name="ilimit">0.0</param>
+            <param name="iratelimit">0.0</param>
+            <param name="max_position_slip">0.0</param>
+            <param name="max_velocity_slip">0.0</param>
+            <param name="enable_motor_temperature">0</param>
+            <param name="max_pos_limit">5000.0</param>
+            <param name="min_pos_limit">-5000.0</param>
+            <param name="max_velocity">100.0</param>
+            <param name="max_effort">10.0</param>
+            <param name="actuator_trasmission">9.0</param>
+            <param name="position_offset">-0.1059179</param>
+            <param name="second_encoder_trasmission">3.23076923</param>
+
+            <param name="position_res">64</param>
+            <param name="velocity_res">64</param>
+            <!-- ... more resolution params ... -->
+        </joint>
+    </xacro:macro>
+
     <ros2_control name="MoteusPi3Hat_Interface" type="system">
         <hardware>
             <plugin>pi3hat_hw_interface/MoteusPi3Hat_Interface</plugin>
-            <param name="main_timeout">400000</param>
-            <param name="can_timeout">20000</param>
-            <param name="rcv_timeout">20000</param>
+            <param name="timeout_ns">0</param>
+            <param name="min_tx_wait_ns">20000</param>
+            <param name="rx_baseline_wait_ns">200000</param>
+            <param name="rx_extra_wait_ns">20000</param>
+            <param name="CPU_affinity">1</param>
 
-            <param name="attitude">1</param>
+            <param name="request_attitude">1</param>
 
-            <param name="b2imu_pos_x">0</param>
-            <param name="b2imu_pos_y">0</param>
-            <param name="b2imu_pos_z">0</param>
+            <param name="mounting_deg_roll">0</param>
+            <param name="mounting_deg_pitch">0</param>
+            <param name="mounting_deg_yaw">0</param>
 
-            <param name="b2imu_roll">0</param>
-            <param name="b2imu_pitch">0</param>
-            <param name="b2imu_yaw">PI/2</param>
-            <param name="acc_correction">0</param>
+            <param name="attitude_hz">400</param>
         </hardware>
 
-        <joint name="RF_HFE">
-            <param name="id">3</param>
-            <param name="bus">4</param>
-            <param name="motor_transmission">9.0</param>
-            <param name="sec_enc_transmission">0.0</param>
-            <param name="KP">0.0</param>
-            <param name="KD">0.0</param>
-            <param name="KI">0.0</param>
-            <param name="i_limit">0.0</param>
-            <param name="p_lim_max">0.0</param>
-            <param name="p_lim_min">0.0</param>
-            <param name="p_offset">0.0</param>
-            <param name="max_vel">10.0</param>
-            <param name="max_torque">5.0</param>
-        </joint>
-
+        <xacro:wheel_joint name="LF_WHEEL_JNT" id="3" bus="2"/>
+        <xacro:wheel_joint name="RF_WHEEL_JNT" id="5" bus="4"/>
+        <xacro:wheel_joint name="RH_WHEEL_JNT" id="7" bus="3"/>
+        <xacro:wheel_joint name="LH_WHEEL_JNT" id="9" bus="1"/>
     </ros2_control>
 </robot>
 ```
 
-1. Communication parameter:
-   - **main_timeout**: is the base time waited by the pi3hat recive the joint response
-   - **can_timeout**: is an extra timeout, it is add to the base one if a can message has been recieved.
-   - **rcv_timeout**: is an extra timeout, it is add to the base one if a verified(CRC) message has beed received.
+1. Communication parameters:
+   - **timeout_ns**: Timeout for the overall Pi3Hat cycle [ns] (0 = no timeout)
+   - **min_tx_wait_ns**: Minimum wait time after transmitting before checking for replies [ns]
+   - **rx_baseline_wait_ns**: Base wait time for receiving CAN replies [ns]
+   - **rx_extra_wait_ns**: Extra wait time added per received CAN frame [ns]
+   - **CPU_affinity**: CPU core affinity for the real-time communication thread
 
-2. IMU parameter:
-   - **attitude**: if set to zero the pi3hat do not collect the IMU data.
-   - **acc_correction**: if set to zero it collect the raw data from IMU, else it collect the data corrected by a VHS, removing the gravity acceleration and providing the pi3hat orientation.
-   - **b2imu_[roll/pitch/yaw]**: orientation offset of the pi3hat frame respect the a desired floating base frame
-   - **b2imu_pos_[x/y/z]**: position offset of the pi3hat frame respect the a desired floating base frame
+2. IMU parameters:
+   - **request_attitude**: If set to zero the Pi3Hat does not collect IMU data
+   - **attitude_hz**: IMU sampling rate [Hz]
+   - **mounting_deg_roll/pitch/yaw**: Orientation offset of the Pi3Hat frame relative to the desired base frame [deg]
 
-3. Joints parameter:
-   - **KP, KD, KI, i_limit**: parameter for the low level PID controller
-   - **bus, id**: parameter to identify the pi3hat can bus port and the driver id number
-   - **motor_transmission**: value of the transmission rateo from the motor to the actuator joint, all the motor quantities provided by the interfaces take into account this value
-   - **sec_enc_transmission**: value of the transmission between actiator joint and the second encoder, the second encoder quantities take into account this value. if set to zero the the interface do not provide the second econder measures.
-   - **p_lim_max, p_lim_min**: joint level saturarion position of the actuator in radians, if set to zero the limit is disabled.
-   - **p_offset**: joint level offset position of the actuator in radians, if set to zero the limit is disabled.
-   - **max_vel**: joint level velocity saturarion.
-   - **max_torque**: joint level torque saturation.
+3. Joint parameters:
+   - **KP, KD, KI, ilimit, iratelimit**: Low-level PID controller parameters
+   - **bus, id**: Pi3Hat CAN bus port and driver ID number
+   - **actuator_trasmission**: Transmission ratio from motor to actuator joint; all motor quantities provided by the interfaces account for this value
+   - **second_encoder_trasmission**: Transmission between actuator joint and second encoder (0 disables second encoder)
+   - **second_encoder_source**: Second encoder data source selector
+   - **max_pos_limit, min_pos_limit**: Joint position limits [rad] (large values effectively disable)
+   - **position_offset**: Joint-space zero offset [rad]
+   - **max_velocity**: Joint velocity saturation [rad/s]
+   - **max_effort**: Joint torque saturation [Nm]
+   - **max_position_slip**: Maximum position slip tolerance
+   - **max_velocity_slip**: Maximum velocity slip tolerance
+   - **enable_motor_temperature**: Enable motor temperature monitoring (0 = disabled)
+   - **Resolution parameters** (`position_res`, `velocity_res`, `torque_res`, `q_current_res`, etc.): CAN-FD reply resolution settings per quantity
 
 ## Joints_Controller
 
@@ -202,7 +225,7 @@ export ROS_DOMAIN_ID=<ID>
 
 To launch the interface use the command:
 ```shell
-ros2 launch pi3hat_hw_interface start_MJBots_Pi3Hat_hw_Interface.launch.py urdf_file:=<filename> conf_file:=<filename>
+ros2 launch pi3hat_hw_interface moteus_pi3hat_interface.launch.py urdf_file:=<filename> conf_file:=<filename>
 ```
 the configuration and urdf file must be contained respectively in pi3hat_hw_interface/config and pi3hat_hw_interface/urdf.
 

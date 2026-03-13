@@ -27,10 +27,10 @@ pi3hat_base_controller          <-- Standalone joint controller + state broadcas
 
 ### Robot Configurations
 
-| Config | XACRO | YAML | Description |
-|--------|-------|------|-------------|
-| **Omnicar** | `omnicar.xacro` | `omnicar.yaml` | 4 mecanum wheels + 2 power distributors |
-| **Omniquad** | `omniquad.xacro` | `omniquad.yaml` | 4 mecanum wheels + 8 leg joints (HFE + KFE per leg) |
+| Config       | XACRO              | YAML              | Description                                         |
+| ------------ | ------------------ | ----------------- | --------------------------------------------------- |
+| **Omnicar**  | `omnicar.xacro`    | `omnicar.yaml`    | 4 mecanum wheels + 2 power distributors             |
+| **Omniquad** | `omniquad12.xacro` | `omniquad12.yaml` | 4 mecanum wheels + 8 leg joints (HFE + KFE per leg) |
 
 ## Quick Start
 
@@ -99,26 +99,101 @@ ros2 service call /omni_controller/emergency_srv std_srvs/srv/SetBool "{data: tr
 
 ### Input Topics (user publishes)
 
-| Topic | Message Type | Description |
-|-------|-------------|-------------|
-| `/omni_controller/twist_cmd` | `geometry_msgs/msg/Twist` | Base velocity: `linear.x` (forward), `linear.y` (left), `angular.z` (CCW). QoS: BestEffort with deadline at `input_frequency` (default 100 Hz). |
-| `/omni_controller/legs_cmd` | `pi3hat_moteus_int_msgs/msg/JointsCommand` | Leg joint commands (position, velocity, effort, kp/kd scaling). QoS: Reliable. Only active when `leg_joints` are configured. |
+| Topic                        | Message Type                               | Description                                                                                                                                     |
+| ---------------------------- | ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/omni_controller/twist_cmd` | `geometry_msgs/msg/Twist`                  | Base velocity: `linear.x` (forward), `linear.y` (left), `angular.z` (CCW). QoS: BestEffort with deadline at `input_frequency` (default 100 Hz). |
+| `/omni_controller/legs_cmd`  | `pi3hat_moteus_int_msgs/msg/JointsCommand` | Leg joint commands (position, velocity, effort, kp/kd scaling). QoS: Reliable. Only active when `leg_joints` are configured.                    |
 
 ### Output Topics (user subscribes)
 
-| Topic | Message Type | Description |
-|-------|-------------|-------------|
-| `/omni_controller/joints_state` | `pi3hat_moteus_int_msgs/msg/JointsStates` | All motor feedback: position, velocity, effort, current, temperature, secondary encoder data. Always published. |
-| `/omni_controller/performance` | `pi3hat_moteus_int_msgs/msg/PacketPass` | CAN-FD packet loss and cycle timing. Published when `pub_performance: true` (default). |
-| `/omni_controller/distributors_state` | `pi3hat_moteus_int_msgs/msg/DistributorsState` | Power distributor states. Published when distributors are configured. |
-| `/omni_controller/odom` | `geometry_msgs/msg/TwistStamped` | Wheel odometry (base frame velocities). Published when `pub_odom: true`. |
+| Topic                                 | Message Type                                   | Description                                                                                                     |
+| ------------------------------------- | ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `/omni_controller/joints_state`       | `pi3hat_moteus_int_msgs/msg/JointsStates`      | All motor feedback: position, velocity, effort, current, temperature, secondary encoder data. Always published. |
+| `/omni_controller/performance`        | `pi3hat_moteus_int_msgs/msg/PacketPass`        | CAN-FD packet loss and cycle timing. Published when `pub_performance: true` (default).                          |
+| `/omni_controller/distributors_state` | `pi3hat_moteus_int_msgs/msg/DistributorsState` | Power distributor states. Published when distributors are configured.                                           |
+| `/omni_controller/odom`               | `geometry_msgs/msg/TwistStamped`               | Wheel odometry (base frame velocities). Published when `pub_odom: true`.                                        |
 
 ### Services
 
-| Service | Type | Description |
-|---------|------|-------------|
-| `/omni_controller/activate_srv` | `std_srvs/srv/SetBool` | `data: true` to activate, `data: false` to deactivate command processing. |
-| `/omni_controller/emergency_srv` | `std_srvs/srv/SetBool` | `data: true` to enter emergency stop. |
+| Service                          | Type                   | Description                                                               |
+| -------------------------------- | ---------------------- | ------------------------------------------------------------------------- |
+| `/omni_controller/activate_srv`  | `std_srvs/srv/SetBool` | `data: true` to activate, `data: false` to deactivate command processing. |
+| `/omni_controller/emergency_srv` | `std_srvs/srv/SetBool` | `data: true` to enter emergency stop.                                     |
+
+## Customizing for Your Robot
+
+To add a new robot configuration you need two files, both inside `pi3hat_hw_interface/`:
+
+1. A **XACRO** file (`urdf/myrobot.xacro`) — defines the hardware: motors, CAN bus layout, PID gains, gear ratios, and safety thresholds.
+2. A **YAML** file (`config/myrobot.yaml`) — defines the controllers: which joints are wheels vs legs, IK type, wheel geometry, and update rate.
+
+### Step 1: Create a XACRO (`pi3hat_hw_interface/urdf/myrobot.xacro`)
+
+The XACRO is a `<ros2_control>` description with a `<hardware>` block (Pi3Hat communication and IMU settings) followed by `<joint>` entries for each motor and power distributor.
+
+Key parameters per joint:
+
+| Parameter                         | Description                                                       |
+| --------------------------------- | ----------------------------------------------------------------- |
+| `id` / `bus`                      | CAN ID and Pi3Hat bus number (1–5)                                |
+| `type`                            | `motor` or `power_dist`                                           |
+| `KP` / `KD` / `KI`                | Low-level PID gains (**must not exceed 16-bit representability**) |
+| `actuator_trasmission`            | Motor-to-joint gear ratio                                         |
+| `position_offset`                 | Joint-space zero offset [rad]                                     |
+| `max_pos_limit` / `min_pos_limit` | Joint position limits [rad] (0 disables)                          |
+| `second_encoder_trasmission`      | Joint-to-secondary-encoder ratio (0 disables)                     |
+
+Use xacro macros to avoid repetition — see [`omnicar.xacro`](src/pi3hat/pi3hat_hw_interface/urdf/omnicar.xacro) (minimal: wheels only) and [`omniquad12.xacro`](src/pi3hat/pi3hat_hw_interface/urdf/omniquad12.xacro) (wheels + legs) as references.
+
+For the full list of hardware and joint parameters, see [`src/pi3hat/README.md` § "Interface configuration file"](src/pi3hat/README.md#interface-configuration-file).
+
+### Step 2: Create a YAML (`pi3hat_hw_interface/config/myrobot.yaml`)
+
+The YAML configures the controller manager and each controller's parameters.
+
+```yaml
+controller_manager:
+  ros__parameters:
+    update_rate: 500 # Hz — must match your real-time loop capability
+
+    omni_controller:
+      type: omni_controller/OmniController
+
+omni_controller:
+  ros__parameters:
+    # Wheel joints — keys depend on IK type (mecanum: LF/LH/RF/RH, differential: LEFT/RIGHT)
+    wheel_joints:
+      LF: LF_WHEEL_JNT
+      LH: LH_WHEEL_JNT
+      RF: RF_WHEEL_JNT
+      RH: RH_WHEEL_JNT
+
+    # Optional: leg joints (omit or leave commented out if not used)
+    # leg_joints:
+    #     - LF_HFE
+    #     - LF_KFE
+
+    # Optional: power distributor names
+    # distributor_names:
+    #     - Distributor_L
+
+    feet_type: mecanum # "mecanum", "differential", or "none"
+    wheel_rad: 0.05 # Wheel radius [m]
+    driveshaft_x: 0.235 # Longitudinal offset from center to wheel [m]
+    driveshaft_y: 0.188 # Lateral offset from center to wheel [m]
+    mecanum_angle: 135.0 # Roller angle [deg] (mecanum only)
+    # track_width: 0.4        # Track width [m] (differential only)
+```
+
+For the complete parameter table, see [`src/omni_controller/README.md`](src/omni_controller/README.md).
+
+### Step 3: Launch
+
+```bash
+ros2 launch pi3hat_hw_interface moteus_pi3hat_interface.launch.py \
+  urdf_file:=myrobot.xacro \
+  conf_file:=myrobot.yaml
+```
 
 ## Custom Message Definitions
 
@@ -189,7 +264,35 @@ float64 omega       # Angular velocity around Z [rad/s]
 float64 height_rate  # Vertical velocity [m/s]
 ```
 
-## Docker (ARM64 development on x86 host)
+## Raspberry Pi Prerequisites
+
+- Ubuntu 22.04 with RT kernel on Raspberry Pi 4 ([tested image](https://github.com/ros-realtime/ros-realtime-rpi4-image/releases/tag/22.04.3_v5.15.98-rt62-raspi_ros2_humble))
+- Pi3Hat r4.4 or newer
+- `bcm_host` library: `sudo ln /usr/lib/aarch64-linux-gnu/libbcm_host.so /usr/lib/libbcm_host.so.0`
+- `ros-humble-ros2-control`, `ros-humble-ros2-controllers`, `ros-humble-xacro`
+- Python moteus library: `pip3 install moteus==0.3.67 moteus_pi3hat`
+
+See [Pi3Hat Robotic Systems](src/pi3hat/README.md) for detailed Raspberry Pi setup instructions.
+
+## Development
+
+### Pre-commit
+
+Install pre-commit and the hooks defined in `.pre-commit-config.yaml`:
+
+```shell
+sudo apt install npm
+pip install pre-commit
+pre-commit install
+```
+
+The hooks will run automatically on every `git commit`. To run them manually on all files:
+
+```shell
+pre-commit run --all-files
+```
+
+### Docker (ARM64 development on x86 host)
 
 For cross-compiling / testing on an x86 machine via QEMU emulation:
 
@@ -210,29 +313,3 @@ docker compose -f docker/docker-compose.yaml down
 ```
 
 The workspace is bind-mounted at `/ws/` inside the container.
-
-## Raspberry Pi Prerequisites
-
-- Ubuntu 22.04 with RT kernel on Raspberry Pi 4 ([tested image](https://github.com/ros-realtime/ros-realtime-rpi4-image/releases/tag/22.04.3_v5.15.98-rt62-raspi_ros2_humble))
-- Pi3Hat r4.4 or newer
-- `bcm_host` library: `sudo ln /usr/lib/aarch64-linux-gnu/libbcm_host.so /usr/lib/libbcm_host.so.0`
-- `ros-humble-ros2-control`, `ros-humble-ros2-controllers`, `ros-humble-xacro`
-- Python moteus library: `pip3 install moteus==0.3.67 moteus_pi3hat`
-
-See [Pi3Hat Robotic Systems](src/pi3hat/README.md) for detailed Raspberry Pi setup instructions.
-
-## Development
-
-### Pre-commit
-
-Install pre-commit and the hooks defined in `.pre-commit-config.yaml`:
-```shell
-sudo apt install nodejs
-pip install pre-commit
-pre-commit install
-```
-
-The hooks will run automatically on every `git commit`. To run them manually on all files:
-```shell
-pre-commit run --all-files
-```
