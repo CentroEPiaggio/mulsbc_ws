@@ -1,5 +1,5 @@
-#include <gtest/gtest.h>
 #include "omni_controller/wheel_ik.hpp"
+#include <gtest/gtest.h>
 
 #include <cmath>
 #include <map>
@@ -8,8 +8,7 @@ using namespace omni_controller;
 
 // ─── MecanumIK Tests ────────────────────────────────────────────────────────
 
-class MecanumIKTest : public ::testing::Test
-{
+class MecanumIKTest: public ::testing::Test {
 protected:
     void SetUp() override
     {
@@ -25,10 +24,7 @@ protected:
     std::unique_ptr<MecanumIK> ik;
 };
 
-TEST_F(MecanumIKTest, NumWheels)
-{
-    EXPECT_EQ(ik->num_wheels(), 4u);
-}
+TEST_F(MecanumIKTest, NumWheels) { EXPECT_EQ(ik->num_wheels(), 4u); }
 
 TEST_F(MecanumIKTest, ZeroInputGivesZeroOutput)
 {
@@ -51,10 +47,10 @@ TEST_F(MecanumIKTest, ForwardXOnly)
         EXPECT_NEAR(std::abs(v), mag, 1e-10);
 
     // LF (-) and LH (-), RF (+) and RH (+)
-    EXPECT_LT(wheel_vels[0], 0.0);  // LF: -1/wr * vx
-    EXPECT_LT(wheel_vels[1], 0.0);  // LH: -1/wr * vx
-    EXPECT_GT(wheel_vels[2], 0.0);  // RF: +1/wr * vx
-    EXPECT_GT(wheel_vels[3], 0.0);  // RH: +1/wr * vx
+    EXPECT_LT(wheel_vels[0], 0.0); // LF: -1/wr * vx
+    EXPECT_LT(wheel_vels[1], 0.0); // LH: -1/wr * vx
+    EXPECT_GT(wheel_vels[2], 0.0); // RF: +1/wr * vx
+    EXPECT_GT(wheel_vels[3], 0.0); // RH: +1/wr * vx
 }
 
 TEST_F(MecanumIKTest, IKFKRoundTrip)
@@ -101,8 +97,7 @@ TEST_F(MecanumIKTest, WrongWheelCountThrows)
 
 // ─── DifferentialIK Tests ───────────────────────────────────────────────────
 
-class DifferentialIKTest : public ::testing::Test
-{
+class DifferentialIKTest: public ::testing::Test {
 protected:
     void SetUp() override
     {
@@ -116,10 +111,7 @@ protected:
     std::unique_ptr<DifferentialIK> ik;
 };
 
-TEST_F(DifferentialIKTest, NumWheels)
-{
-    EXPECT_EQ(ik->num_wheels(), 2u);
-}
+TEST_F(DifferentialIKTest, NumWheels) { EXPECT_EQ(ik->num_wheels(), 2u); }
 
 TEST_F(DifferentialIKTest, ZeroInputGivesZeroOutput)
 {
@@ -145,7 +137,7 @@ TEST_F(DifferentialIKTest, PureRotation)
     // left = -omega * track/2 / r = -2.0 * 0.25 / 0.1 = -5.0
     // right = +omega * track/2 / r = +5.0
     EXPECT_NEAR(vels[0], -5.0, 1e-10);
-    EXPECT_NEAR(vels[1],  5.0, 1e-10);
+    EXPECT_NEAR(vels[1], 5.0, 1e-10);
 }
 
 TEST_F(DifferentialIKTest, IKFKRoundTrip)
@@ -209,14 +201,13 @@ TEST(DifferentialMultiWheelConcept, IKOutputFansOutToGroups)
 
     // Simulate 2 wheels per side: each gets the same velocity
     std::vector<std::vector<std::string>> groups = {
-        {"left_front", "left_rear"},
-        {"right_front", "right_rear"}
+        {"left_front", "left_rear"}, {"right_front", "right_rear"}
     };
 
     // Fan out: each joint in group g gets vels[g]
     std::map<std::string, double> joint_cmds;
     for (size_t g = 0; g < groups.size(); g++)
-        for (const auto & jnt : groups[g])
+        for (const auto& jnt : groups[g])
             joint_cmds[jnt] = vels[g];
 
     // All left wheels get the same velocity
@@ -262,7 +253,7 @@ TEST(WheelIKFactory, UnknownTypeThrows)
     EXPECT_THROW(create_wheel_ik("swerve"), std::invalid_argument);
 }
 
-int main(int argc, char ** argv)
+int main(int argc, char** argv)
 {
     testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();

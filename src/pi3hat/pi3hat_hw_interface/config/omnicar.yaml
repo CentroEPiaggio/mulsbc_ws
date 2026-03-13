@@ -33,7 +33,7 @@ omni_controller:
             RH: RH_WHEEL_JNT
 
         # leg_joints: #omitted — defaults to empty. Do NOT use "[]" (ROS 2 can't infer the type)
-        #     - ... 
+        #     - ...
 
         distributor_names:
             - Distributor_R

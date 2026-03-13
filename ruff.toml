@@ -1,0 +1,33 @@
+line-length = 100
+
+[format]
+quote-style = "single"
+indent-style = "space"
+line-ending = "lf"
+skip-magic-trailing-comma = false
+docstring-code-format = true
+
+[lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["E741", "E501"]
+fixable = ["ALL"]
+unfixable = []
+
+[lint.isort]
+section-order = [
+    "future",
+    "standard-library",
+    "third-party",
+    "ros",
+    "first-party",
+    "local-folder",
+]
+known-third-party = ["numpy", "scipy"]
+known-first-party = ["pi3hat_moteus_int_msgs"]
+
+[lint.isort.sections]
+ros = [
+    "rclpy", "launch", "launch_ros", "ament_index_python",
+    "sensor_msgs", "geometry_msgs", "std_msgs", "nav_msgs",
+    "tf2_ros", "tf2_geometry_msgs",
+]

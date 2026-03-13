@@ -220,3 +220,19 @@ The workspace is bind-mounted at `/ws/` inside the container.
 - Python moteus library: `pip3 install moteus==0.3.67 moteus_pi3hat`
 
 See [Pi3Hat Robotic Systems](src/pi3hat/README.md) for detailed Raspberry Pi setup instructions.
+
+## Development
+
+### Pre-commit
+
+Install pre-commit and the hooks defined in `.pre-commit-config.yaml`:
+```shell
+sudo apt install nodejs
+pip install pre-commit
+pre-commit install
+```
+
+The hooks will run automatically on every `git commit`. To run them manually on all files:
+```shell
+pre-commit run --all-files
+```

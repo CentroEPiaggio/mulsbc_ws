@@ -18,28 +18,30 @@
 namespace mjbots {
 namespace pi3hat {
 
-inline void ConfigureRealtime(int cpu) {
-  {
-    cpu_set_t cpuset = {};
-    CPU_ZERO(&cpuset);
-    CPU_SET(cpu, &cpuset);
+inline void ConfigureRealtime(int cpu)
+{
+    {
+        cpu_set_t cpuset = {};
+        CPU_ZERO(&cpuset);
+        CPU_SET(cpu, &cpuset);
 
-    const int r = ::sched_setaffinity(0, sizeof(cpu_set_t), &cpuset);
-    if (r < 0) {
-      throw std::runtime_error("Error setting CPU affinity");
+        const int r = ::sched_setaffinity(0, sizeof(cpu_set_t), &cpuset);
+        if (r < 0) {
+            throw std::runtime_error("Error setting CPU affinity");
+        }
     }
-  }
 
-  {
-    struct sched_param params = {};
-    params.sched_priority = 10;
-    const int r = ::sched_setscheduler(0, SCHED_RR, &params);
-    if (r < 0) {
-      throw std::runtime_error(
-          "Error setting realtime scheduler, try running as root (use sudo)");
+    {
+        struct sched_param params = {};
+        params.sched_priority = 10;
+        const int r = ::sched_setscheduler(0, SCHED_RR, &params);
+        if (r < 0) {
+            throw std::runtime_error(
+                "Error setting realtime scheduler, try running as root (use sudo)"
+            );
+        }
     }
-  }
 }
 
-}
-}
+} // namespace pi3hat
+} // namespace mjbots

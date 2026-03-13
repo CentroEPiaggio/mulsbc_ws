@@ -1,26 +1,26 @@
 <library path="pi3hat_base_controller">
-  <class name="pi3hat_joint_group_controller/Pi3Hat_Joint_Group_Controller" 
+  <class name="pi3hat_joint_group_controller/Pi3Hat_Joint_Group_Controller"
     type="pi3hat_joint_group_controller::Pi3Hat_Joint_Group_Controller"
     base_class_type="controller_interface::ControllerInterface">
       <description>
       Pi3Hat joint groups controller
       </description>
   </class>
-  <class name="pi3hat_state_broadcaster/Pi3Hat_State_Broadcaster" 
+  <class name="pi3hat_state_broadcaster/Pi3Hat_State_Broadcaster"
     type="pi3hat_state_broadcaster::Pi3Hat_State_Broadcaster"
     base_class_type="controller_interface::ControllerInterface">
       <description>
       Pi3Hat state and performance broadcaster
       </description>
   </class>
-  <class name="distributor_state_broadcaster/Distributor_State_Broadcaster" 
+  <class name="distributor_state_broadcaster/Distributor_State_Broadcaster"
     type="distributor_state_broadcaster::Distributor_State_Broadcaster"
     base_class_type="controller_interface::ControllerInterface">
       <description>
       Pi3Hat distributors state broadcaster
       </description>
   </class>
-  <class name="debug_broadcaster/Debug_Broadcaster" 
+  <class name="debug_broadcaster/Debug_Broadcaster"
     type="debug_broadcaster::Debug_Broadcaster"
     base_class_type="controller_interface::ControllerInterface">
       <description>

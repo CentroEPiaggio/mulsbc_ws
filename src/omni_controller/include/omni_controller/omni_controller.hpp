@@ -15,42 +15,38 @@
 
 #include "geometry_msgs/msg/twist.hpp"
 #include "geometry_msgs/msg/twist_stamped.hpp"
+#include "pi3hat_moteus_int_msgs/msg/distributors_state.hpp"
 #include "pi3hat_moteus_int_msgs/msg/joints_command.hpp"
 #include "pi3hat_moteus_int_msgs/msg/joints_states.hpp"
 #include "pi3hat_moteus_int_msgs/msg/packet_pass.hpp"
-#include "pi3hat_moteus_int_msgs/msg/distributors_state.hpp"
 #include "std_srvs/srv/set_bool.hpp"
 
 #include "omni_controller/wheel_ik.hpp"
 
 #include <chrono>
 
-namespace omni_controller
-{
+namespace omni_controller {
 
 // Local copies of custom HW interface names (avoids depending on pi3hat_hw_interface)
-namespace hw_if
-{
-    constexpr char KP_SCALE[]       = "kp_scale_value";
-    constexpr char KD_SCALE[]       = "kd_scale_value";
-    constexpr char TEMPERATURE[]    = "temperature";
-    constexpr char Q_CURRENT[]      = "q_current";
-    constexpr char VOLTAGE[]        = "voltage";
-    constexpr char CURRENT[]        = "current";
-    constexpr char VALIDITY_LOSS[]  = "validity_loss";
-    constexpr char PACKAGE_LOSS[]   = "package_loss";
-    constexpr char CYCLE_DUR[]      = "cycle_duration";
-}  // namespace hw_if
+namespace hw_if {
+constexpr char KP_SCALE[] = "kp_scale_value";
+constexpr char KD_SCALE[] = "kd_scale_value";
+constexpr char TEMPERATURE[] = "temperature";
+constexpr char Q_CURRENT[] = "q_current";
+constexpr char VOLTAGE[] = "voltage";
+constexpr char CURRENT[] = "current";
+constexpr char VALIDITY_LOSS[] = "validity_loss";
+constexpr char PACKAGE_LOSS[] = "package_loss";
+constexpr char CYCLE_DUR[] = "cycle_duration";
+} // namespace hw_if
 
-enum ControllerState
-{
+enum ControllerState {
     INACTIVE = 0,
     HOMING,
     ACTIVE,
 };
 
-struct JointHomingConfig
-{
+struct JointHomingConfig {
     double qi = 0.0;
     double qm = 0.0;
     double qf = 0.0;
@@ -60,12 +56,11 @@ struct JointHomingConfig
 using CallbackReturn = rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn;
 using TransactionService = std_srvs::srv::SetBool;
 using JointsCommand = pi3hat_moteus_int_msgs::msg::JointsCommand;
-using JointsStates  = pi3hat_moteus_int_msgs::msg::JointsStates;
-using PacketPass    = pi3hat_moteus_int_msgs::msg::PacketPass;
+using JointsStates = pi3hat_moteus_int_msgs::msg::JointsStates;
+using PacketPass = pi3hat_moteus_int_msgs::msg::PacketPass;
 using DistributorsState = pi3hat_moteus_int_msgs::msg::DistributorsState;
 
-class OmniController : public controller_interface::ControllerInterface
-{
+class OmniController: public controller_interface::ControllerInterface {
 public:
     OmniController() = default;
     ~OmniController() override = default;
@@ -75,23 +70,23 @@ public:
     controller_interface::InterfaceConfiguration command_interface_configuration() const override;
     controller_interface::InterfaceConfiguration state_interface_configuration() const override;
 
-    CallbackReturn on_configure(const rclcpp_lifecycle::State & previous_state) override;
-    CallbackReturn on_activate(const rclcpp_lifecycle::State & previous_state) override;
-    CallbackReturn on_deactivate(const rclcpp_lifecycle::State & previous_state) override;
-    CallbackReturn on_cleanup(const rclcpp_lifecycle::State & previous_state) override;
+    CallbackReturn on_configure(const rclcpp_lifecycle::State& previous_state) override;
+    CallbackReturn on_activate(const rclcpp_lifecycle::State& previous_state) override;
+    CallbackReturn on_deactivate(const rclcpp_lifecycle::State& previous_state) override;
+    CallbackReturn on_cleanup(const rclcpp_lifecycle::State& previous_state) override;
 
-    controller_interface::return_type update(
-        const rclcpp::Time & time, const rclcpp::Duration & period) override;
+    controller_interface::return_type
+    update(const rclcpp::Time& time, const rclcpp::Duration& period) override;
 
 private:
     // ─── Configuration ──────────────────────────────────────────────────
     std::vector<std::string> wheel_joints_;
-    std::vector<std::vector<std::string>> wheel_groups_;  // IK index → joint names
+    std::vector<std::vector<std::string>> wheel_groups_; // IK index → joint names
     std::vector<std::string> leg_joints_;
-    std::vector<std::string> all_motor_joints_;  // wheel_joints_ + leg_joints_
+    std::vector<std::string> all_motor_joints_; // wheel_joints_ + leg_joints_
     std::vector<std::string> distributor_names_;
     std::vector<std::string> second_encoder_joints_;
-    std::vector<bool> se_flag_;  // per motor joint: has second encoder?
+    std::vector<bool> se_flag_; // per motor joint: has second encoder?
 
     bool has_wheels_ = false;
     bool has_legs_ = false;
@@ -112,7 +107,7 @@ private:
     // ─── Homing ─────────────────────────────────────────────────────────
     std::vector<double> homing_phase_durations_;
     std::map<std::string, JointHomingConfig> homing_config_;
-    std::map<std::string, double> homing_q_start_;  // actual joint pos at homing start
+    std::map<std::string, double> homing_q_start_; // actual joint pos at homing start
     int homing_phase_ = 0;
     rclcpp::Time homing_start_time_;
     bool homing_time_initialized_ = false;
@@ -158,31 +153,37 @@ private:
     // ─── Callbacks ──────────────────────────────────────────────────────
     void twist_callback(const geometry_msgs::msg::Twist::SharedPtr msg);
     void legs_callback(const JointsCommand::SharedPtr msg);
-    void activate_service_cb(const TransactionService::Request::SharedPtr req,
-                             const TransactionService::Response::SharedPtr res);
-    void emergency_service_cb(const TransactionService::Request::SharedPtr req,
-                              const TransactionService::Response::SharedPtr res);
-    void homing_service_cb(const TransactionService::Request::SharedPtr req,
-                           const TransactionService::Response::SharedPtr res);
+    void activate_service_cb(
+        const TransactionService::Request::SharedPtr req,
+        const TransactionService::Response::SharedPtr res
+    );
+    void emergency_service_cb(
+        const TransactionService::Request::SharedPtr req,
+        const TransactionService::Response::SharedPtr res
+    );
+    void homing_service_cb(
+        const TransactionService::Request::SharedPtr req,
+        const TransactionService::Response::SharedPtr res
+    );
 
     // ─── Update helpers ─────────────────────────────────────────────────
-    void publish_joint_states(const rclcpp::Time & time);
-    void publish_performance(const rclcpp::Time & time);
-    void publish_distributor_states(const rclcpp::Time & time);
-    void publish_odometry(const rclcpp::Time & time);
+    void publish_joint_states(const rclcpp::Time& time);
+    void publish_performance(const rclcpp::Time& time);
+    void publish_distributor_states(const rclcpp::Time& time);
+    void publish_odometry(const rclcpp::Time& time);
     void write_wheel_commands();
     void write_leg_commands();
     void zero_all_commands();
-    void update_homing(const rclcpp::Time & time);
+    void update_homing(const rclcpp::Time& time);
     static double cosine_interp(double a, double b, double t);
 
     // ─── Helpers ────────────────────────────────────────────────────────
     /// Get state interface value by "joint/interface" key. Returns 0.0 if not found.
-    double get_state(const std::string & key) const;
+    double get_state(const std::string& key) const;
     /// Set command interface value by "joint/interface" key.
-    void set_command(const std::string & key, double value);
+    void set_command(const std::string& key, double value);
 };
 
-}  // namespace omni_controller
+} // namespace omni_controller
 
-#endif  // OMNI_CONTROLLER_HPP
+#endif // OMNI_CONTROLLER_HPP

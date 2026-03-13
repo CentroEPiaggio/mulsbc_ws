@@ -1,10 +1,10 @@
 controller_manager:
     ros__parameters:
         update_rate: 500
-        
+
         state_broadcaster:
             type: pi3hat_state_broadcaster/Pi3Hat_State_Broadcaster
-        
+
         imu_sensor:
             type: imu_sensor_broadcaster/IMUSensorBroadcaster
 
@@ -103,7 +103,7 @@ omni_controller:
             RF_KFE: {qi: 0.0, qf:  1.0}
             RH_HFE: {qi: 0.0, qf:  2.0}
             RH_KFE: {qi: 0.0, qf: -1.0}
-        
+
         # Wheel IK
         feet_type: mecanum
         wheel_rad: 0.05
