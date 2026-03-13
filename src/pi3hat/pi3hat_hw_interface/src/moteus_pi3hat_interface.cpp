@@ -122,12 +122,12 @@ CallbackReturn MoteusPi3Hat_Interface::on_init(const hardware_interface::Hardwar
 
     p_opt_ = pi3hat_parser->get_configurable();
 
-    p_opt_.default_input.attitude = nullptr;
-
     if (p_opt_.default_input.request_attitude) {
         RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME), "Pi3hat IMU Attitude Data Requested");
         attitude_requested_ = true;
-        p_opt_.default_input.request_attitude = false;
+        p_opt_.default_input.attitude = &filtered_IMU_;
+    } else {
+        p_opt_.default_input.attitude = nullptr;
     }
     pi3hat_transport_ = std::make_shared<mjbots::pi3hat::Pi3HatMoteusTransport>(p_opt_);
     // get joints num and allocate the structures
@@ -298,12 +298,9 @@ CallbackReturn MoteusPi3Hat_Interface::on_activate(const rclcpp_lifecycle::State
 {
     motors_stopped_.store(false);
     first_cycle_ = true;
-    pi3hat_transport_.reset();
-    if (attitude_requested_) {
-        p_opt_.default_input.request_attitude = true;
-        p_opt_.default_input.attitude = &filtered_IMU_;
-    }
-    pi3hat_transport_ = std::make_shared<mjbots::pi3hat::Pi3HatMoteusTransport>(p_opt_);
+    // Transport is reused from on_init - no recreation needed.
+    // Controllers already hold shared_ptr to this transport, so SendExact()
+    // and Cycle() go through the same Pi3Hat instance. No SPI race.
     RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME), "Start Actuator Activation Procedure");
     for (auto i : actuator_index_) {
         actuators_[i]->SendExact();
