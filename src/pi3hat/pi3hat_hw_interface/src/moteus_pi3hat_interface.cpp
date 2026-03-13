@@ -298,9 +298,22 @@ CallbackReturn MoteusPi3Hat_Interface::on_activate(const rclcpp_lifecycle::State
 {
     motors_stopped_.store(false);
     first_cycle_ = true;
-    // Transport is reused from on_init - no recreation needed.
-    // Controllers already hold shared_ptr to this transport, so SendExact()
-    // and Cycle() go through the same Pi3Hat instance. No SPI race.
+
+    // Flush stale CAN replies without recreating the transport.
+    // Recreating the transport would create a second Pi3Hat instance
+    // while Controllers still hold shared_ptr to the old one, causing
+    // dual SPI access and intermittent CAN corruption.
+    {
+        std::vector<mjbots::moteus::CanFdFrame> stale_replies;
+        mjbots::pi3hat::Pi3Hat::Input flush_input;
+        flush_input.force_can_check = (1 << 1) | (1 << 2) | (1 << 3);
+        mjbots::moteus::BlockingCallback cbk;
+        pi3hat_transport_->Cycle(
+            nullptr, 0, &stale_replies, nullptr, nullptr, &flush_input, cbk.callback()
+        );
+        cbk.Wait();
+    }
+
     RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME), "Start Actuator Activation Procedure");
     for (auto i : actuator_index_) {
         actuators_[i]->SendExact();
