@@ -165,7 +165,7 @@ bool Actuator_Manager::ConfigureActuator(std::shared_ptr<mjbots::moteus::Transpo
         );
     else
         cmd_str = "nan";
-    cmd_diagn = "conf set servo.position_min " + cmd_str + "\n";
+    cmd_diagn = "conf set servopos.position_min " + cmd_str + "\n";
     RCLCPP_INFO(rclcpp::get_logger("Actuator_Manager"), "%s", cmd_diagn.c_str());
     c_->DiagnosticWrite(cmd_diagn);
     if (act_opt_.pos_max_limit != 0.0)
@@ -174,7 +174,7 @@ bool Actuator_Manager::ConfigureActuator(std::shared_ptr<mjbots::moteus::Transpo
         );
     else
         cmd_str = "nan";
-    cmd_diagn = "conf set servo.position_max " + cmd_str + "\n";
+    cmd_diagn = "conf set servopos.position_max " + cmd_str + "\n";
     RCLCPP_INFO(rclcpp::get_logger("Actuator_Manager"), "%s", cmd_diagn.c_str());
     c_->DiagnosticWrite(cmd_diagn);
 
@@ -186,10 +186,10 @@ bool Actuator_Manager::ConfigureActuator(std::shared_ptr<mjbots::moteus::Transpo
     RCLCPP_INFO(rclcpp::get_logger("Actuator_Manager"), "%s", cmd_diagn.c_str());
     c_->DiagnosticWrite(cmd_diagn);
 
-    cmd_diagn = "conf set servo.max_power " + std::to_string(act_opt_.max_power_W) + "\n";
+    cmd_diagn = "conf set servo.max_power_W " + std::to_string(act_opt_.max_power_W) + "\n";
     RCLCPP_INFO(rclcpp::get_logger("Actuator_Manager"), "%s", cmd_diagn.c_str());
     c_->DiagnosticWrite(cmd_diagn);
-    cmd_diagn = "conf set servo.max_current " + std::to_string(act_opt_.max_current_A) + "\n";
+    cmd_diagn = "conf set servo.max_current_A " + std::to_string(act_opt_.max_current_A) + "\n";
     RCLCPP_INFO(rclcpp::get_logger("Actuator_Manager"), "%s", cmd_diagn.c_str());
     c_->DiagnosticWrite(cmd_diagn);
     cmd_diagn = "conf set servo.default_timeout_s 0.1\n";
