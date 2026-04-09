@@ -38,10 +38,11 @@ public:
         // preliminary check to not direct block the mutex
         if (!done_.load(std::memory_order_acquire))
             return -1;
-
+        // lock the mutex in the actual scope
         std::lock_guard<std::mutex> lock(mutex_);
         done_.store(false);
         RCLCPP_DEBUG(rclcpp::get_logger("CALLBACK"), "try consume");
+
         return result_.load();
     }
 

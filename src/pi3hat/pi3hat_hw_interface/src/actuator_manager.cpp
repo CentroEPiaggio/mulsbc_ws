@@ -32,6 +32,7 @@ bool Actuator_Manager::ConfigureActuator(std::shared_ptr<mjbots::moteus::Transpo
             std::make_unique<SecondEncoderOutput>(second_encoder_transmission_);
     max_torque_ = act_opt_.max_effort;
     position_offset_ = act_opt_.position_offset;
+    cmd_.position = position_offset_;
     c_opt.query_format = query_format_;
     // RCLCPP_INFO(rclcpp::get_logger("Actuator_Manager"),"Configuring actuator extra %d %d
     // ",c_opt.query_format.extra[0].register_number,c_opt.query_format.extra[1].register_number);
@@ -165,7 +166,7 @@ bool Actuator_Manager::ConfigureActuator(std::shared_ptr<mjbots::moteus::Transpo
         );
     else
         cmd_str = "nan";
-    cmd_diagn = "conf set servo.position_min " + cmd_str + "\n";
+    cmd_diagn = "conf set servopos.position_min " + cmd_str + "\n";
     RCLCPP_INFO(rclcpp::get_logger("Actuator_Manager"), "%s", cmd_diagn.c_str());
     c_->DiagnosticWrite(cmd_diagn);
     if (act_opt_.pos_max_limit != 0.0)
@@ -174,7 +175,7 @@ bool Actuator_Manager::ConfigureActuator(std::shared_ptr<mjbots::moteus::Transpo
         );
     else
         cmd_str = "nan";
-    cmd_diagn = "conf set servo.position_max " + cmd_str + "\n";
+    cmd_diagn = "conf set servopos.position_max " + cmd_str + "\n";
     RCLCPP_INFO(rclcpp::get_logger("Actuator_Manager"), "%s", cmd_diagn.c_str());
     c_->DiagnosticWrite(cmd_diagn);
 
@@ -189,10 +190,16 @@ bool Actuator_Manager::ConfigureActuator(std::shared_ptr<mjbots::moteus::Transpo
     cmd_diagn = "conf set servo.max_power " + std::to_string(act_opt_.max_power_W) + "\n";
     RCLCPP_INFO(rclcpp::get_logger("Actuator_Manager"), "%s", cmd_diagn.c_str());
     c_->DiagnosticWrite(cmd_diagn);
-    cmd_diagn = "conf set servo.max_current " + std::to_string(act_opt_.max_current_A) + "\n";
+    cmd_diagn = "conf set servo.max_current_A " + std::to_string(act_opt_.max_current_A) + "\n";
     RCLCPP_INFO(rclcpp::get_logger("Actuator_Manager"), "%s", cmd_diagn.c_str());
     c_->DiagnosticWrite(cmd_diagn);
     cmd_diagn = "conf set servo.default_timeout_s 0.1\n";
+    RCLCPP_INFO(rclcpp::get_logger("Actuator_Manager"), "%s", cmd_diagn.c_str());
+    c_->DiagnosticWrite(cmd_diagn);
+    // MODIFICA: Aggiunto conf write per salvare i parametri nel flash del driver
+    // Questo assicura che i parametri siano persistenti dopo il riavvio
+    // Per rimuovere, commenta o elimina queste righe
+    cmd_diagn = "conf write\n";
     RCLCPP_INFO(rclcpp::get_logger("Actuator_Manager"), "%s", cmd_diagn.c_str());
     c_->DiagnosticWrite(cmd_diagn);
     c_->DiagnosticFlush();
@@ -206,37 +213,34 @@ bool Actuator_Manager::ConfigureActuator(std::shared_ptr<mjbots::moteus::Transpo
 void Actuator_Manager::ExportSttInt(std::vector<hardware_interface::StateInterface>& stt_int)
 {
 
-    if (query_format_.position != Resolution::kIgnore) {
-        stt_int.emplace_back(jnt_name_, hardware_interface::HW_IF_POSITION, &stt_.position);
-    }
-    if (query_format_.velocity != Resolution::kIgnore) {
-        stt_int.emplace_back(jnt_name_, hardware_interface::HW_IF_VELOCITY, &stt_.velocity);
-    }
-    if (query_format_.torque != Resolution::kIgnore) {
-        stt_int.emplace_back(jnt_name_, hardware_interface::HW_IF_EFFORT, &stt_.effort);
-    }
-    if (query_format_.q_current != Resolution::kIgnore) {
-        stt_int.emplace_back(jnt_name_, hardware_interface::HW_IF_Q_CURRENT, &stt_.q_current);
-    }
+    // MODIFICA: Esporta sempre le interfacce standard per evitare mismatch negli indici del
+    // broadcaster Anche se disabilitate, esporta con valori 0 per mantenere l'ordine fisso
+    stt_int.emplace_back(jnt_name_, hardware_interface::HW_IF_POSITION, &stt_.position);
+    stt_int.emplace_back(jnt_name_, hardware_interface::HW_IF_VELOCITY, &stt_.velocity);
+    stt_int.emplace_back(jnt_name_, hardware_interface::HW_IF_EFFORT, &stt_.effort);
+    stt_int.emplace_back(jnt_name_, hardware_interface::HW_IF_Q_CURRENT, &stt_.q_current);
+    // MODIFICA: Esporta sempre power e voltage per mantenere ordine fisso
+    // Per rimuovere power e voltage, commenta o elimina queste due righe
+    stt_int.emplace_back(jnt_name_, hardware_interface::HW_IF_POWER, &stt_.power);
+    stt_int.emplace_back(jnt_name_, hardware_interface::HW_IF_VOLTAGE, &stt_.voltage);
+    stt_int.emplace_back(jnt_name_, hardware_interface::HW_IF_TEMPERATURE, &stt_.temperature);
+    // Package loss è esportato dal MoteusPi3Hat_Interface principale, non dall'actuator
+    // stt_int.emplace_back(
+    //     jnt_name_,
+    //     hardware_interface::HW_IF_PACKAGE_LOSS,
+    //     &stt_.package_loss
+    // );
+    // Interfacce aggiuntive condizionali
     if (query_format_.d_current != Resolution::kIgnore) {
         stt_int.emplace_back(jnt_name_, hardware_interface::HW_IF_D_CURRENT, &stt_.d_current);
     }
     if (query_format_.abs_position != Resolution::kIgnore) {
         stt_int.emplace_back(jnt_name_, hardware_interface::HW_IF_ABS_POSITION, &stt_.abs_position);
     }
-    if (query_format_.power != Resolution::kIgnore) {
-        stt_int.emplace_back(jnt_name_, hardware_interface::HW_IF_POWER, &stt_.power);
-    }
     if (query_format_.motor_temperature != Resolution::kIgnore) {
         stt_int.emplace_back(
             jnt_name_, hardware_interface::HW_IF_MOTOR_TEMPERATURE, &stt_.motor_temperature
         );
-    }
-    if (query_format_.voltage != Resolution::kIgnore) {
-        stt_int.emplace_back(jnt_name_, hardware_interface::HW_IF_VOLTAGE, &stt_.voltage);
-    }
-    if (query_format_.temperature != Resolution::kIgnore) {
-        stt_int.emplace_back(jnt_name_, hardware_interface::HW_IF_TEMPERATURE, &stt_.temperature);
     }
     for (int i = 0; i < MAX_EXTRAS; i++) {
         if (query_format_.extra[i].resolution != Resolution::kIgnore) {
@@ -379,7 +383,6 @@ bool Actuator_Manager::ParseSttFromReply(CanFdFrame frame)
             }
         }
     }
-    UpdateTemperatureEMA();
     return true;
 };
 void Actuator_Manager::MakeCommand()
@@ -475,7 +478,6 @@ bool Distributor_Manager::ParseSttFromReply(CanFdFrame frame)
     if (qf_.energy != Resolution::kIgnore)
         stt_.energy = result.energy;
 
-    UpdateVoltageEMA();
     return true;
 }
 } // namespace power_dist_manager
