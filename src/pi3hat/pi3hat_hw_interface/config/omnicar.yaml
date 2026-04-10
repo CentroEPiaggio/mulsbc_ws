@@ -3,7 +3,7 @@ controller_manager:
     update_rate: 500
 
     state_broadcaster:
-      type: pi3hat_state_broadcaster/Pi3Hat_State_Broadcaster
+      type: pi3hat_state_broadcaster/Pi3HatStateBroadcaster
 
     imu_sensor:
       type: imu_sensor_broadcaster/IMUSensorBroadcaster

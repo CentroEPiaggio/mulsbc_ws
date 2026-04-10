@@ -21,11 +21,11 @@ namespace pi3hat_joint_group_controller {
 using CmdMsgs = pi3hat_moteus_int_msgs::msg::JointsCommand;
 using CallbackReturn = rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn;
 
-class Pi3Hat_Joint_Group_Controller: public controller_interface::ControllerInterface {
+class Pi3HatJointGroupController: public controller_interface::ControllerInterface {
 public:
-    Pi3Hat_Joint_Group_Controller();
+    Pi3HatJointGroupController();
 
-    ~Pi3Hat_Joint_Group_Controller();
+    ~Pi3HatJointGroupController();
 
     CallbackReturn on_init() override;
 

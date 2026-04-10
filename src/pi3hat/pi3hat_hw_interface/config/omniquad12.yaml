@@ -3,19 +3,19 @@ controller_manager:
     update_rate: 500
 
     state_broadcaster:
-      type: pi3hat_state_broadcaster/Pi3Hat_State_Broadcaster
+      type: pi3hat_state_broadcaster/Pi3HatStateBroadcaster
 
     distributor_state_broadcaster:
-      type: distributor_state_broadcaster/Distributor_State_Broadcaster
+      type: distributor_state_broadcaster/DistributorStateBroadcaster
 
     debug_broadcaster:
-      type: debug_broadcaster/Debug_Broadcaster
+      type: debug_broadcaster/DebugBroadcaster
 
     imu_sensor:
       type: imu_sensor_broadcaster/IMUSensorBroadcaster
 
     joint_controller:
-      type: pi3hat_joint_group_controller/Pi3Hat_Joint_Group_Controller
+      type: pi3hat_joint_group_controller/Pi3HatJointGroupController
 
     omni_controller:
       type: omni_controller/OmniController

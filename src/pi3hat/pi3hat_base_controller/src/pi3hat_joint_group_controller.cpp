@@ -4,21 +4,21 @@
 #include <cstdint>
 
 namespace pi3hat_joint_group_controller {
-Pi3Hat_Joint_Group_Controller::Pi3Hat_Joint_Group_Controller()
+Pi3HatJointGroupController::Pi3HatJointGroupController()
 : cmd_sub_(nullptr),
-  logger_name_("Pi3Hat_Joint_Group_Controller"),
+  logger_name_("Pi3HatJointGroupController"),
   rt_buffer_(nullptr),
   joints_rcvd_msg_(nullptr),
   default_init_pos_(false)
 
 {}
 
-Pi3Hat_Joint_Group_Controller::~Pi3Hat_Joint_Group_Controller()
+Pi3HatJointGroupController::~Pi3HatJointGroupController()
 {
     // rt_buffer_.~RealtimeBuffer();
 }
 
-CallbackReturn Pi3Hat_Joint_Group_Controller::on_init()
+CallbackReturn Pi3HatJointGroupController::on_init()
 {
     try {
         auto_declare<std::vector<std::string>>("joints", std::vector<std::string>());
@@ -45,7 +45,7 @@ CallbackReturn Pi3Hat_Joint_Group_Controller::on_init()
     return CallbackReturn::SUCCESS;
 }
 
-CallbackReturn Pi3Hat_Joint_Group_Controller::on_configure(const rclcpp_lifecycle::State&)
+CallbackReturn Pi3HatJointGroupController::on_configure(const rclcpp_lifecycle::State&)
 {
     std::vector<double> init_positions;
     size_t sz;
@@ -100,24 +100,24 @@ CallbackReturn Pi3Hat_Joint_Group_Controller::on_configure(const rclcpp_lifecycl
     return CallbackReturn::SUCCESS;
 }
 
-CallbackReturn Pi3Hat_Joint_Group_Controller::on_activate(const rclcpp_lifecycle::State&)
+CallbackReturn Pi3HatJointGroupController::on_activate(const rclcpp_lifecycle::State&)
 {
     rt_buffer_.reset();
     RCLCPP_INFO(get_node()->get_logger(), "activate succesfully");
     return CallbackReturn::SUCCESS;
 }
 
-CallbackReturn Pi3Hat_Joint_Group_Controller::on_deactivate(const rclcpp_lifecycle::State&)
+CallbackReturn Pi3HatJointGroupController::on_deactivate(const rclcpp_lifecycle::State&)
 {
     return CallbackReturn::SUCCESS;
 }
 
-CallbackReturn Pi3Hat_Joint_Group_Controller::on_cleanup(const rclcpp_lifecycle::State&)
+CallbackReturn Pi3HatJointGroupController::on_cleanup(const rclcpp_lifecycle::State&)
 {
     return CallbackReturn::SUCCESS;
 }
 
-bool Pi3Hat_Joint_Group_Controller::get_reference()
+bool Pi3HatJointGroupController::get_reference()
 {
     // joints_rcvd_msg_ = *rt_buffer_.readFromRT();
 
@@ -173,7 +173,7 @@ bool Pi3Hat_Joint_Group_Controller::get_reference()
 }
 
 controller_interface::return_type
-Pi3Hat_Joint_Group_Controller::update(const rclcpp::Time&, const rclcpp::Duration&)
+Pi3HatJointGroupController::update(const rclcpp::Time&, const rclcpp::Duration&)
 {
     std::string type;
     // set the data from the readed message
@@ -233,7 +233,7 @@ Pi3Hat_Joint_Group_Controller::update(const rclcpp::Time&, const rclcpp::Duratio
 }
 
 controller_interface::InterfaceConfiguration
-Pi3Hat_Joint_Group_Controller::state_interface_configuration() const
+Pi3HatJointGroupController::state_interface_configuration() const
 {
     controller_interface::InterfaceConfiguration stt_int_cnf;
     stt_int_cnf.type = controller_interface::interface_configuration_type::NONE;
@@ -241,7 +241,7 @@ Pi3Hat_Joint_Group_Controller::state_interface_configuration() const
 }
 
 controller_interface::InterfaceConfiguration
-Pi3Hat_Joint_Group_Controller::command_interface_configuration() const
+Pi3HatJointGroupController::command_interface_configuration() const
 {
     controller_interface::InterfaceConfiguration cmd_int_cnf;
     cmd_int_cnf.type = controller_interface::interface_configuration_type::INDIVIDUAL;
@@ -257,6 +257,6 @@ Pi3Hat_Joint_Group_Controller::command_interface_configuration() const
 }; // namespace pi3hat_joint_group_controller
 
 PLUGINLIB_EXPORT_CLASS(
-    pi3hat_joint_group_controller::Pi3Hat_Joint_Group_Controller,
+    pi3hat_joint_group_controller::Pi3HatJointGroupController,
     controller_interface::ControllerInterface
 );

@@ -5,9 +5,9 @@
 #include <cstdint>
 
 namespace debug_broadcaster {
-Debug_Broadcaster::Debug_Broadcaster(): logger_name_("Debug_Broadcaster"), stt_pub_(nullptr) {};
+DebugBroadcaster::DebugBroadcaster(): logger_name_("DebugBroadcaster"), stt_pub_(nullptr) {};
 
-CallbackReturn Debug_Broadcaster::on_init()
+CallbackReturn DebugBroadcaster::on_init()
 {
 
     try {
@@ -23,7 +23,7 @@ CallbackReturn Debug_Broadcaster::on_init()
     return CallbackReturn::SUCCESS;
 }
 
-CallbackReturn Debug_Broadcaster::on_configure(const rclcpp_lifecycle::State&)
+CallbackReturn DebugBroadcaster::on_configure(const rclcpp_lifecycle::State&)
 {
 
     joints_ = get_node()->get_parameter("joints").as_string_array();
@@ -45,12 +45,12 @@ CallbackReturn Debug_Broadcaster::on_configure(const rclcpp_lifecycle::State&)
     return CallbackReturn::SUCCESS;
 }
 
-CallbackReturn Debug_Broadcaster::on_cleanup(const rclcpp_lifecycle::State&)
+CallbackReturn DebugBroadcaster::on_cleanup(const rclcpp_lifecycle::State&)
 {
     return CallbackReturn::SUCCESS;
 }
 
-CallbackReturn Debug_Broadcaster::on_activate(const rclcpp_lifecycle::State&)
+CallbackReturn DebugBroadcaster::on_activate(const rclcpp_lifecycle::State&)
 {
     // for(size_t i = 0; i < joints_.size(); i++)
     //     RCLCPP_INFO(get_node()->get_logger(),"joints %d has name %s and is
@@ -60,13 +60,12 @@ CallbackReturn Debug_Broadcaster::on_activate(const rclcpp_lifecycle::State&)
     return CallbackReturn::SUCCESS;
 }
 
-CallbackReturn Debug_Broadcaster::on_deactivate(const rclcpp_lifecycle::State&)
+CallbackReturn DebugBroadcaster::on_deactivate(const rclcpp_lifecycle::State&)
 {
     return CallbackReturn::SUCCESS;
 }
 
-controller_interface::InterfaceConfiguration
-Debug_Broadcaster::state_interface_configuration() const
+controller_interface::InterfaceConfiguration DebugBroadcaster::state_interface_configuration() const
 {
     controller_interface::InterfaceConfiguration stt_int_cnf;
     stt_int_cnf.type = controller_interface::interface_configuration_type::INDIVIDUAL;
@@ -81,7 +80,7 @@ Debug_Broadcaster::state_interface_configuration() const
 }
 
 controller_interface::InterfaceConfiguration
-Debug_Broadcaster::command_interface_configuration() const
+DebugBroadcaster::command_interface_configuration() const
 {
     controller_interface::InterfaceConfiguration cmd_int_cnf;
     cmd_int_cnf.type = controller_interface::interface_configuration_type::NONE;
@@ -89,7 +88,7 @@ Debug_Broadcaster::command_interface_configuration() const
 }
 
 controller_interface::return_type
-Debug_Broadcaster::update(const rclcpp::Time& time, const rclcpp::Duration&)
+DebugBroadcaster::update(const rclcpp::Time& time, const rclcpp::Duration&)
 {
     size_t sz = joints_.size();
 
@@ -115,5 +114,5 @@ Debug_Broadcaster::update(const rclcpp::Time& time, const rclcpp::Duration&)
 }; // namespace debug_broadcaster
 
 PLUGINLIB_EXPORT_CLASS(
-    debug_broadcaster::Debug_Broadcaster, controller_interface::ControllerInterface
+    debug_broadcaster::DebugBroadcaster, controller_interface::ControllerInterface
 );

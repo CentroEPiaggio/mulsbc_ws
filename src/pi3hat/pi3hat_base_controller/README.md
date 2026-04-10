@@ -8,9 +8,9 @@ This package provides standalone ros2_control controller plugins for directly co
 
 ## Plugins
 
-### Pi3Hat_Joint_Group_Controller
+### Pi3HatJointGroupController
 
-`pi3hat_joint_group_controller/Pi3Hat_Joint_Group_Controller`
+`pi3hat_joint_group_controller/Pi3HatJointGroupController`
 
 Commands individual joints using the low-level Moteus PID controller.
 
@@ -27,9 +27,9 @@ Commands individual joints using the low-level Moteus PID controller.
 |-------|------|-----------|-------------|
 | `~/command` | `JointsCommand` | sub | Per-joint position, velocity, effort, and kp/kd scale commands |
 
-### Pi3Hat_State_Broadcaster
+### Pi3HatStateBroadcaster
 
-`pi3hat_state_broadcaster/Pi3Hat_State_Broadcaster`
+`pi3hat_state_broadcaster/Pi3HatStateBroadcaster`
 
 Broadcasts motor joint states and CAN-FD performance metrics.
 
@@ -48,9 +48,9 @@ Broadcasts motor joint states and CAN-FD performance metrics.
 | `~/joints_state` | `JointsStates` | pub | Joint positions, velocities, efforts, currents, temperatures |
 | `~/performance_indexes` | `PacketPass` | pub | CAN cycle time, validation, per-motor packet loss (when `performance_index: true`) |
 
-### Distributor_State_Broadcaster
+### DistributorStateBroadcaster
 
-`distributor_state_broadcaster/Distributor_State_Broadcaster`
+`distributor_state_broadcaster/DistributorStateBroadcaster`
 
 Broadcasts power distributor states.
 
@@ -60,9 +60,9 @@ Broadcasts power distributor states.
 |-------|------|-----------|-------------|
 | `~/distributors_state` | `DistributorsState` | pub | Distributor current, voltage, and temperature |
 
-### Debug_Broadcaster
+### DebugBroadcaster
 
-`debug_broadcaster/Debug_Broadcaster`
+`debug_broadcaster/DebugBroadcaster`
 
 Broadcasts additional debug information from Moteus drivers.
 
