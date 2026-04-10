@@ -51,6 +51,7 @@ CallbackReturn OmniController::on_init()
         auto_declare<bool>("sim", false);
         auto_declare<bool>("pub_odom", false);
         auto_declare<bool>("pub_performance", true);
+        auto_declare<std::string>("wheel_mode", "ik");
 
         // Transitions (rest / stand)
         auto_declare<double>("rest_duration", 0.0);
@@ -188,6 +189,20 @@ CallbackReturn OmniController::on_configure(const rclcpp_lifecycle::State&)
         leg_kd_cmd_[jnt] = 1.0;
     }
 
+    // ── Wheel mode ──────────────────────────────────────────────────────
+    std::string wheel_mode_str = get_node()->get_parameter("wheel_mode").as_string();
+    if (wheel_mode_str == "direct")
+        wheel_mode_ = WheelMode::WHEEL_DIRECT;
+    else
+        wheel_mode_ = WheelMode::WHEEL_IK;
+
+    // Initialize direct wheel command buffers
+    for (const auto& jnt : wheel_joints_) {
+        direct_wheel_vel_cmd_[jnt] = 0.0;
+        direct_wheel_kp_cmd_[jnt] = 0.0;
+        direct_wheel_kd_cmd_[jnt] = 1.0;
+    }
+
     // ── Transition configuration (rest / stand) ──────────────────────────
     rest_duration_ = get_node()->get_parameter("rest_duration").as_double();
     stand_duration_ = get_node()->get_parameter("stand_duration").as_double();
@@ -293,6 +308,16 @@ CallbackReturn OmniController::on_configure(const rclcpp_lifecycle::State&)
         );
     }
 
+    if (has_wheels_) {
+        rclcpp::QoS direct_qos(5);
+        direct_qos.reliability(rclcpp::ReliabilityPolicy::Reliable);
+
+        direct_wheels_sub_ = get_node()->create_subscription<JointsCommand>(
+            "~/direct_wheels_cmd", direct_qos,
+            std::bind(&OmniController::direct_wheels_callback, this, std::placeholders::_1)
+        );
+    }
+
     // ── Publishers ──────────────────────────────────────────────────────
     stt_pub_ = get_node()->create_publisher<JointsStates>("~/joints_state", 5);
 
@@ -335,6 +360,15 @@ CallbackReturn OmniController::on_configure(const rclcpp_lifecycle::State&)
                                &OmniController::stand_service_cb, this, std::placeholders::_1,
                                std::placeholders::_2
                            )
+        );
+    }
+
+    if (has_wheels_) {
+        wheel_mode_srv_ = get_node()->create_service<TransactionService>(
+            "~/set_wheel_mode", std::bind(
+                                    &OmniController::wheel_mode_service_cb, this,
+                                    std::placeholders::_1, std::placeholders::_2
+                                )
         );
     }
 
@@ -569,8 +603,12 @@ OmniController::update(const rclcpp::Time& time, const rclcpp::Duration&)
         update_transition(time);
         break;
     case ControllerState::ACTIVE:
-        if (has_wheels_ && wheel_ik_)
-            write_wheel_commands();
+        if (has_wheels_) {
+            if (wheel_mode_ == WHEEL_IK && wheel_ik_)
+                write_wheel_commands();
+            else if (wheel_mode_ == WHEEL_DIRECT)
+                write_direct_wheel_commands();
+        }
         if (has_legs_) {
             // Check leg command timeout
             if (legs_cmd_received_) {
@@ -668,6 +706,48 @@ void OmniController::activate_service_cb(
         res->success = false;
         res->message = req->data ? "Not in Inactive mode" : "Invalid request";
     }
+}
+
+void OmniController::direct_wheels_callback(const JointsCommand::SharedPtr msg)
+{
+    std::lock_guard<std::mutex> lg(var_mutex_);
+    if (c_stt_ != ControllerState::ACTIVE)
+        return;
+    for (size_t i = 0; i < msg->name.size(); i++) {
+        const auto& name = msg->name[i];
+        if (direct_wheel_vel_cmd_.count(name)) {
+            if (i < msg->velocity.size())
+                direct_wheel_vel_cmd_[name] = msg->velocity[i];
+            if (i < msg->kp_scale.size())
+                direct_wheel_kp_cmd_[name] = msg->kp_scale[i];
+            if (i < msg->kd_scale.size())
+                direct_wheel_kd_cmd_[name] = msg->kd_scale[i];
+        }
+    }
+}
+
+void OmniController::wheel_mode_service_cb(
+    const TransactionService::Request::SharedPtr req,
+    const TransactionService::Response::SharedPtr res
+)
+{
+    std::lock_guard<std::mutex> lg(var_mutex_);
+    if (!has_wheels_) {
+        res->success = false;
+        res->message = "No wheels configured";
+        return;
+    }
+    wheel_mode_ = req->data ? WHEEL_DIRECT : WHEEL_IK;
+    // Zero both command buffers on mode switch
+    base_vel_[0] = 0.0;
+    base_vel_[1] = 0.0;
+    base_vel_[2] = 0.0;
+    for (auto& [name, vel] : direct_wheel_vel_cmd_)
+        vel = 0.0;
+    res->success = true;
+    res->message =
+        (wheel_mode_ == WHEEL_DIRECT) ? "Switched to direct mode" : "Switched to IK mode";
+    RCLCPP_INFO(get_node()->get_logger(), "%s", res->message.c_str());
 }
 
 void OmniController::emergency_service_cb(
@@ -777,6 +857,19 @@ void OmniController::write_wheel_commands()
                 set_command(jnt + "/" + hw_if::KP_SCALE, 0.0);
                 set_command(jnt + "/" + hw_if::KD_SCALE, 1.0);
             }
+        }
+    }
+}
+
+void OmniController::write_direct_wheel_commands()
+{
+    for (const auto& jnt : wheel_joints_) {
+        set_command(jnt + "/" + hardware_interface::HW_IF_VELOCITY, direct_wheel_vel_cmd_[jnt]);
+        if (!sim_flag_) {
+            set_command(jnt + "/" + hardware_interface::HW_IF_POSITION, std::nan("1"));
+            set_command(jnt + "/" + hardware_interface::HW_IF_EFFORT, 0.0);
+            set_command(jnt + "/" + hw_if::KP_SCALE, direct_wheel_kp_cmd_[jnt]);
+            set_command(jnt + "/" + hw_if::KD_SCALE, direct_wheel_kd_cmd_[jnt]);
         }
     }
 }

@@ -62,6 +62,8 @@ struct JointTargets {
 
 enum TransitionTarget { TARGET_REST = 0, TARGET_STAND };
 
+enum WheelMode { WHEEL_IK = 0, WHEEL_DIRECT };
+
 using CallbackReturn = rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn;
 using TransactionService = std_srvs::srv::SetBool;
 using JointsCommand = pi3hat_moteus_int_msgs::msg::JointsCommand;
@@ -119,8 +121,9 @@ private:
     double damping_duration_ = 3.0;
     double legs_cmd_timeout_ = 0.5;
 
-    // ─── Wheel IK ───────────────────────────────────────────────────────
+    // ─── Wheel IK / direct mode ────────────────────────────────────────
     std::unique_ptr<WheelIK> wheel_ik_;
+    WheelMode wheel_mode_ = WHEEL_IK;
 
     // ─── State machine ──────────────────────────────────────────────────
     ControllerState c_stt_ = ControllerState::INACTIVE;
@@ -157,6 +160,11 @@ private:
     std::mutex var_mutex_;
     double base_vel_[3] = {0.0, 0.0, 0.0};
 
+    // Direct wheel commands: per-wheel buffered values
+    std::map<std::string, double> direct_wheel_vel_cmd_;
+    std::map<std::string, double> direct_wheel_kp_cmd_;
+    std::map<std::string, double> direct_wheel_kd_cmd_;
+
     // Leg commands: per-joint buffered values
     std::map<std::string, double> leg_pos_cmd_;
     std::map<std::string, double> leg_vel_cmd_;
@@ -186,12 +194,14 @@ private:
     // ─── Subscribers ────────────────────────────────────────────────────
     rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr twist_sub_;
     rclcpp::Subscription<JointsCommand>::SharedPtr legs_sub_;
+    rclcpp::Subscription<JointsCommand>::SharedPtr direct_wheels_sub_;
 
     // ─── Services ───────────────────────────────────────────────────────
     rclcpp::Service<TransactionService>::SharedPtr activate_srv_;
     rclcpp::Service<TransactionService>::SharedPtr emergency_srv_;
     rclcpp::Service<TransactionService>::SharedPtr rest_srv_;
     rclcpp::Service<TransactionService>::SharedPtr stand_srv_;
+    rclcpp::Service<TransactionService>::SharedPtr wheel_mode_srv_;
 
     // ─── Callbacks ──────────────────────────────────────────────────────
     void twist_callback(const geometry_msgs::msg::Twist::SharedPtr msg);
@@ -212,6 +222,11 @@ private:
         const TransactionService::Request::SharedPtr req,
         const TransactionService::Response::SharedPtr res
     );
+    void direct_wheels_callback(const JointsCommand::SharedPtr msg);
+    void wheel_mode_service_cb(
+        const TransactionService::Request::SharedPtr req,
+        const TransactionService::Response::SharedPtr res
+    );
 
     // ─── Update helpers ─────────────────────────────────────────────────
     void publish_joint_states(const rclcpp::Time& time);
@@ -219,6 +234,7 @@ private:
     void publish_distributor_states(const rclcpp::Time& time);
     void publish_odometry(const rclcpp::Time& time);
     void write_wheel_commands();
+    void write_direct_wheel_commands();
     void write_leg_commands();
     void zero_all_commands();
     void update_transition(const rclcpp::Time& time);
