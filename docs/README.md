@@ -10,4 +10,5 @@
 
 ## Guides
 
+- [Usage Guide: Adding a Custom Robot](usage_guide.md) — Step-by-step guide to create xacro/yaml configs, launch, and control your robot
 - [Raspberry Pi Setup](../src/pi3hat/README.md) — Detailed Raspberry Pi prerequisites, installation, and hardware configuration
