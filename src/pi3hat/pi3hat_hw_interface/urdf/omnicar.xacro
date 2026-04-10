@@ -30,9 +30,9 @@
             <param name="q_current_res">8</param>
             <param name="d_current_res">0</param>
             <param name="abs_position_res">0</param>
-            <param name="power_res">0</param>
+            <param name="power_res">8</param>
             <param name="motor_temperature_res">0</param>
-            <param name="voltage_res">0</param>
+            <param name="voltage_res">16</param>
             <param name="temperature_res">8</param>
             <param name="position_error_res">64</param>
             <param name="velocity_error_res">64</param>
@@ -77,10 +77,10 @@
             <param name="attitude_hz">400</param>
         </hardware>
 
-        <xacro:wheel_joint name="LF_WHEEL_JNT" id="3" bus="2"/>
-        <xacro:wheel_joint name="RF_WHEEL_JNT" id="5" bus="4"/>
-        <xacro:wheel_joint name="RH_WHEEL_JNT" id="7" bus="3"/>
-        <xacro:wheel_joint name="LH_WHEEL_JNT" id="9" bus="1"/>
+        <xacro:wheel_joint name="LF_WHEEL" id="3" bus="2"/>
+        <xacro:wheel_joint name="RF_WHEEL" id="5" bus="4"/>
+        <xacro:wheel_joint name="LH_WHEEL" id="9" bus="1"/>
+        <xacro:wheel_joint name="RH_WHEEL" id="7" bus="3"/>
 
         <xacro:distributor_joint name="Distributor_L" id="32"/>
         <xacro:distributor_joint name="Distributor_R" id="33"/>
