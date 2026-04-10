@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 
 using namespace std::chrono;
 using namespace std::chrono_literals;
@@ -53,6 +54,18 @@ CallbackReturn OmniController::on_init()
 
         // Homing
         auto_declare<std::vector<double>>("homing_phases", std::vector<double>());
+
+        // Safety
+        auto_declare<bool>("safety.enabled", true);
+        auto_declare<double>("safety.temp_warning_threshold", 50.0);
+        auto_declare<double>("safety.temp_critical_threshold", 57.0);
+        auto_declare<double>("safety.battery_min_voltage", 24.0);
+        auto_declare<double>("safety.temp_recovery_hysteresis", 5.0);
+        auto_declare<double>("safety.volt_recovery_hysteresis", 1.0);
+        auto_declare<int>("safety.ema_window_samples", 5000);
+        auto_declare<std::string>("safety.critical_strategy", "damping");
+        auto_declare<double>("safety.damping_duration", 3.0);
+        auto_declare<double>("safety.legs_cmd_timeout", 0.5);
     } catch (const std::exception& e) {
         RCLCPP_ERROR(
             get_node()->get_logger(), "Exception during parameter declaration: %s", e.what()
@@ -208,6 +221,49 @@ CallbackReturn OmniController::on_configure(const rclcpp_lifecycle::State&)
         );
     }
 
+    // ── Safety parameters ─────────────────────────────────────────────
+    safety_enabled_ = get_node()->get_parameter("safety.enabled").as_bool();
+    temp_warning_threshold_ =
+        get_node()->get_parameter("safety.temp_warning_threshold").as_double();
+    temp_critical_threshold_ =
+        get_node()->get_parameter("safety.temp_critical_threshold").as_double();
+    battery_min_voltage_ = get_node()->get_parameter("safety.battery_min_voltage").as_double();
+    temp_recovery_hysteresis_ =
+        get_node()->get_parameter("safety.temp_recovery_hysteresis").as_double();
+    volt_recovery_hysteresis_ =
+        get_node()->get_parameter("safety.volt_recovery_hysteresis").as_double();
+    ema_window_samples_ = get_node()->get_parameter("safety.ema_window_samples").as_int();
+    critical_strategy_ = get_node()->get_parameter("safety.critical_strategy").as_string();
+    damping_duration_ = get_node()->get_parameter("safety.damping_duration").as_double();
+    legs_cmd_timeout_ = get_node()->get_parameter("safety.legs_cmd_timeout").as_double();
+
+    if (critical_strategy_ != "damping" && critical_strategy_ != "default_config" &&
+        critical_strategy_ != "stop") {
+        RCLCPP_ERROR(
+            get_node()->get_logger(),
+            "Invalid safety.critical_strategy '%s', must be 'damping', 'default_config', or 'stop'",
+            critical_strategy_.c_str()
+        );
+        return CallbackReturn::ERROR;
+    }
+
+    // Compute EMA alpha: alpha = 2 / (N + 1)
+    ema_alpha_ = 2.0 / (static_cast<double>(ema_window_samples_) + 1.0);
+
+    // Resize EMA arrays
+    temp_ema_.resize(all_motor_joints_.size(), 0.0);
+    volt_ema_.resize(distributor_names_.size(), 0.0);
+
+    // Declare default_config parameters for each leg joint (fallback to homing qi = 0.0)
+    if (critical_strategy_ == "default_config") {
+        for (const auto& jnt : leg_joints_) {
+            double default_q = 0.0;
+            if (homing_config_.count(jnt))
+                default_q = homing_config_[jnt].qi;
+            auto_declare<double>("safety.default_config." + jnt + ".q", default_q);
+        }
+    }
+
     // ── QoS setup ───────────────────────────────────────────────────────
     bool best_effort = get_node()->get_parameter("BestEffort_QOS").as_bool();
     int input_freq = get_node()->get_parameter("input_frequency").as_int();
@@ -258,6 +314,9 @@ CallbackReturn OmniController::on_configure(const rclcpp_lifecycle::State&)
 
     if (pub_odom_ && has_wheels_ && wheel_ik_)
         odom_pub_ = get_node()->create_publisher<geometry_msgs::msg::TwistStamped>("~/odom", 10);
+
+    if (safety_enabled_)
+        safety_pub_ = get_node()->create_publisher<std_msgs::msg::UInt8>("~/safety_state", 5);
 
     // ── Services ────────────────────────────────────────────────────────
     activate_srv_ = get_node()->create_service<TransactionService>(
@@ -343,6 +402,15 @@ CallbackReturn OmniController::on_activate(const rclcpp_lifecycle::State&)
     // Start in INACTIVE — wait for activate_srv call
     c_stt_ = ControllerState::INACTIVE;
     dl_miss_count_ = 0;
+
+    // Reset safety state
+    safety_state_ = SafetyState::SAFETY_NORMAL;
+    ema_initialized_ = false;
+    ema_warmup_counter_ = 0;
+    warn_throttle_counter_ = 0;
+    damping_time_initialized_ = false;
+    legs_cmd_received_ = false;
+    legs_timeout_throttle_ = 0;
 
     RCLCPP_INFO(
         get_node()->get_logger(), "on_activate successful (INACTIVE, waiting for activate_srv)"
@@ -445,8 +513,58 @@ OmniController::update(const rclcpp::Time& time, const rclcpp::Duration&)
     if (pub_odom_ && has_wheels_ && wheel_ik_ && odom_pub_)
         publish_odometry(time);
 
-    // Phase 2: Process commands
+    // Phase 2: Process commands (with safety override)
     std::lock_guard<std::mutex> lg(var_mutex_);
+
+    // Safety monitoring (inside mutex — safety_state_ is read by service callbacks)
+    if (safety_enabled_)
+        update_safety_monitoring();
+
+    // Publish safety state
+    if (safety_enabled_ && safety_pub_) {
+        std_msgs::msg::UInt8 safety_msg;
+        safety_msg.data = static_cast<uint8_t>(safety_state_);
+        safety_pub_->publish(safety_msg);
+    }
+
+    // Safety override: CRITICAL / DAMPING / STOPPED take precedence
+    if (safety_enabled_) {
+        switch (safety_state_) {
+        case SafetyState::SAFETY_CRITICAL:
+            // Force inactive, then transition to DAMPING or STOPPED
+            c_stt_ = ControllerState::INACTIVE;
+            if (critical_strategy_ == "stop") {
+                safety_state_ = SafetyState::SAFETY_STOPPED;
+                zero_all_commands();
+                RCLCPP_ERROR(get_node()->get_logger(), "SAFETY CRITICAL: motors stopped");
+            } else {
+                safety_state_ = SafetyState::SAFETY_DAMPING;
+                damping_time_initialized_ = false;
+                RCLCPP_ERROR(
+                    get_node()->get_logger(),
+                    "SAFETY CRITICAL: starting damping sequence (strategy: %s)",
+                    critical_strategy_.c_str()
+                );
+                update_damping(time);
+            }
+            return controller_interface::return_type::OK;
+
+        case SafetyState::SAFETY_DAMPING:
+            c_stt_ = ControllerState::INACTIVE;
+            update_damping(time);
+            return controller_interface::return_type::OK;
+
+        case SafetyState::SAFETY_STOPPED:
+            c_stt_ = ControllerState::INACTIVE;
+            zero_all_commands();
+            return controller_interface::return_type::OK;
+
+        default:
+            break; // NORMAL / WARNING: continue with normal state machine
+        }
+    }
+
+    // Normal state machine
     switch (c_stt_) {
     case ControllerState::INACTIVE:
         zero_all_commands();
@@ -457,8 +575,28 @@ OmniController::update(const rclcpp::Time& time, const rclcpp::Duration&)
     case ControllerState::ACTIVE:
         if (has_wheels_ && wheel_ik_)
             write_wheel_commands();
-        if (has_legs_)
+        if (has_legs_) {
+            // Check leg command timeout
+            if (legs_cmd_received_) {
+                double since_last = (time - last_legs_cmd_time_).seconds();
+                if (since_last > legs_cmd_timeout_) {
+                    // Hold last position — zero feedforward for pure position hold
+                    for (const auto& jnt : leg_joints_) {
+                        leg_vel_cmd_[jnt] = 0.0;
+                        leg_eff_cmd_[jnt] = 0.0;
+                    }
+                    if (++legs_timeout_throttle_ >= 500) {
+                        RCLCPP_WARN(
+                            get_node()->get_logger(),
+                            "Leg command timeout (%.2fs since last cmd), holding position",
+                            since_last
+                        );
+                        legs_timeout_throttle_ = 0;
+                    }
+                }
+            }
             write_leg_commands();
+        }
         break;
     }
 
@@ -485,6 +623,9 @@ void OmniController::legs_callback(const JointsCommand::SharedPtr msg)
     std::lock_guard<std::mutex> lg(var_mutex_);
     if (c_stt_ == ControllerState::HOMING)
         return;
+    last_legs_cmd_time_ = get_node()->now();
+    legs_cmd_received_ = true;
+    legs_timeout_throttle_ = 0;
     for (size_t i = 0; i < msg->name.size(); i++) {
         const auto& name = msg->name[i];
         if (leg_pos_cmd_.count(name)) {
@@ -508,6 +649,11 @@ void OmniController::activate_service_cb(
 )
 {
     std::lock_guard<std::mutex> lg(var_mutex_);
+    if (safety_enabled_ && safety_state_ != SafetyState::SAFETY_NORMAL) {
+        res->success = false;
+        res->message = "Cannot activate: safety state is not NORMAL";
+        return;
+    }
     if (c_stt_ == ControllerState::INACTIVE && req->data) {
         // Snap leg commands to actual positions to prevent jumps
         if (has_legs_) {
@@ -675,6 +821,11 @@ void OmniController::homing_service_cb(
 )
 {
     std::lock_guard<std::mutex> lg(var_mutex_);
+    if (safety_enabled_ && safety_state_ != SafetyState::SAFETY_NORMAL) {
+        res->success = false;
+        res->message = "Cannot start homing: safety state is not NORMAL";
+        return;
+    }
     if ((c_stt_ == ControllerState::INACTIVE || c_stt_ == ControllerState::ACTIVE) && has_homing_ &&
         req->data) {
         homing_phase_ = 0;
@@ -771,6 +922,190 @@ void OmniController::update_homing(const rclcpp::Time& time)
             c_stt_ = ControllerState::ACTIVE;
             RCLCPP_INFO(get_node()->get_logger(), "Homing complete, transitioning to ACTIVE");
         }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  Safety
+// ═══════════════════════════════════════════════════════════════════════════
+
+void OmniController::update_safety_monitoring()
+{
+    // Update temperature EMAs for all motor joints
+    for (size_t i = 0; i < all_motor_joints_.size(); i++) {
+        double temp = get_state(all_motor_joints_[i] + "/" + hw_if::TEMPERATURE);
+        if (!ema_initialized_)
+            temp_ema_[i] = temp;
+        else
+            temp_ema_[i] = ema_alpha_ * temp + (1.0 - ema_alpha_) * temp_ema_[i];
+    }
+
+    // Update voltage EMAs for all distributors
+    for (size_t i = 0; i < distributor_names_.size(); i++) {
+        double volt = get_state(distributor_names_[i] + "/" + std::string(hw_if::VOLTAGE));
+        if (!ema_initialized_)
+            volt_ema_[i] = volt;
+        else
+            volt_ema_[i] = ema_alpha_ * volt + (1.0 - ema_alpha_) * volt_ema_[i];
+    }
+
+    ema_initialized_ = true;
+
+    // Wait for the EMA to warm up before evaluating transitions.
+    // This avoids false triggers from noisy initial sensor readings.
+    if (ema_warmup_counter_ < ema_window_samples_) {
+        ema_warmup_counter_++;
+        return;
+    }
+
+    evaluate_safety_transitions();
+}
+
+void OmniController::evaluate_safety_transitions()
+{
+    // Compute max temperature across all motors
+    double max_temp = 0.0;
+    std::string hottest_joint;
+    for (size_t i = 0; i < temp_ema_.size(); i++) {
+        if (temp_ema_[i] > max_temp) {
+            max_temp = temp_ema_[i];
+            hottest_joint = all_motor_joints_[i];
+        }
+    }
+
+    // Compute min voltage across all distributors (skip if none)
+    double min_volt = std::numeric_limits<double>::max();
+    bool has_volt = !volt_ema_.empty();
+    for (size_t i = 0; i < volt_ema_.size(); i++) {
+        if (volt_ema_[i] < min_volt)
+            min_volt = volt_ema_[i];
+    }
+
+    switch (safety_state_) {
+    case SafetyState::SAFETY_NORMAL:
+        if (max_temp > temp_critical_threshold_ || (has_volt && min_volt < battery_min_voltage_)) {
+            safety_state_ = SafetyState::SAFETY_CRITICAL;
+            RCLCPP_ERROR(
+                get_node()->get_logger(), "SAFETY CRITICAL: temp=%.1f°C (%s), volt=%.1fV", max_temp,
+                hottest_joint.c_str(), has_volt ? min_volt : 0.0
+            );
+        } else if (max_temp > temp_warning_threshold_) {
+            safety_state_ = SafetyState::SAFETY_WARNING;
+            RCLCPP_WARN(
+                get_node()->get_logger(), "SAFETY WARNING: temp=%.1f°C (%s)", max_temp,
+                hottest_joint.c_str()
+            );
+        }
+        break;
+
+    case SafetyState::SAFETY_WARNING:
+        if (max_temp > temp_critical_threshold_ || (has_volt && min_volt < battery_min_voltage_)) {
+            safety_state_ = SafetyState::SAFETY_CRITICAL;
+            RCLCPP_ERROR(
+                get_node()->get_logger(), "SAFETY CRITICAL: temp=%.1f°C (%s), volt=%.1fV", max_temp,
+                hottest_joint.c_str(), has_volt ? min_volt : 0.0
+            );
+        } else if (max_temp < temp_warning_threshold_ - temp_recovery_hysteresis_) {
+            safety_state_ = SafetyState::SAFETY_NORMAL;
+            RCLCPP_INFO(get_node()->get_logger(), "Safety recovered from WARNING to NORMAL");
+        } else {
+            // Throttled warning at ~1Hz (500 ticks at 500Hz)
+            if (++warn_throttle_counter_ >= 500) {
+                warn_throttle_counter_ = 0;
+                RCLCPP_WARN(
+                    get_node()->get_logger(), "SAFETY WARNING: temp=%.1f°C (%s)", max_temp,
+                    hottest_joint.c_str()
+                );
+            }
+        }
+        break;
+
+    case SafetyState::SAFETY_STOPPED: {
+        // Check recovery conditions
+        bool temp_ok = max_temp < (temp_warning_threshold_ - temp_recovery_hysteresis_);
+        bool volt_ok = !has_volt || (min_volt > battery_min_voltage_ + volt_recovery_hysteresis_);
+        if (temp_ok && volt_ok) {
+            safety_state_ = SafetyState::SAFETY_NORMAL;
+            // c_stt_ stays INACTIVE — user must call activate_srv
+            RCLCPP_INFO(
+                get_node()->get_logger(),
+                "Safety recovered from STOPPED to NORMAL (activate_srv required to resume)"
+            );
+        }
+        break;
+    }
+
+    default:
+        // CRITICAL and DAMPING transitions are handled in update()
+        break;
+    }
+}
+
+void OmniController::update_damping(const rclcpp::Time& time)
+{
+    if (!damping_time_initialized_) {
+        damping_start_time_ = time;
+        damping_time_initialized_ = true;
+        // Record current positions for all leg joints
+        for (const auto& jnt : leg_joints_)
+            damping_q_start_[jnt] = get_state(jnt + "/" + hardware_interface::HW_IF_POSITION);
+    }
+
+    double elapsed = (time - damping_start_time_).seconds();
+    double t = std::clamp(elapsed / damping_duration_, 0.0, 1.0);
+
+    // Lock wheels during damping
+    if (has_wheels_) {
+        for (const auto& jnt : wheel_joints_) {
+            set_command(jnt + "/" + hardware_interface::HW_IF_VELOCITY, 0.0);
+            if (!sim_flag_) {
+                set_command(jnt + "/" + hardware_interface::HW_IF_POSITION, std::nan("1"));
+                set_command(jnt + "/" + hardware_interface::HW_IF_EFFORT, 0.0);
+                set_command(jnt + "/" + hw_if::KP_SCALE, 0.0);
+                set_command(jnt + "/" + hw_if::KD_SCALE, 1.0);
+            }
+        }
+    }
+
+    if (critical_strategy_ == "damping") {
+        // Hold current position, ramp kp_scale from 1.0 → 0.0 via cosine
+        double kp_scale = cosine_interp(1.0, 0.0, t);
+        for (const auto& jnt : leg_joints_) {
+            set_command(jnt + "/" + hardware_interface::HW_IF_POSITION, damping_q_start_[jnt]);
+            set_command(jnt + "/" + hardware_interface::HW_IF_VELOCITY, 0.0);
+            set_command(jnt + "/" + hardware_interface::HW_IF_EFFORT, 0.0);
+            if (!sim_flag_) {
+                set_command(jnt + "/" + hw_if::KP_SCALE, kp_scale);
+                set_command(jnt + "/" + hw_if::KD_SCALE, 1.0);
+            }
+        }
+    } else {
+        // "default_config": interpolate to safe positions, kp stays at 1.0
+        for (const auto& jnt : leg_joints_) {
+            double target_q = 0.0;
+            try {
+                target_q =
+                    get_node()->get_parameter("safety.default_config." + jnt + ".q").as_double();
+            } catch (...) {
+                // Fallback to homing qi
+                if (homing_config_.count(jnt))
+                    target_q = homing_config_[jnt].qi;
+            }
+            double q = cosine_interp(damping_q_start_[jnt], target_q, t);
+            set_command(jnt + "/" + hardware_interface::HW_IF_POSITION, q);
+            set_command(jnt + "/" + hardware_interface::HW_IF_VELOCITY, 0.0);
+            set_command(jnt + "/" + hardware_interface::HW_IF_EFFORT, 0.0);
+            if (!sim_flag_) {
+                set_command(jnt + "/" + hw_if::KP_SCALE, 1.0);
+                set_command(jnt + "/" + hw_if::KD_SCALE, 1.0);
+            }
+        }
+    }
+
+    // Check if damping sequence is complete
+    if (t >= 1.0) {
+        safety_state_ = SafetyState::SAFETY_STOPPED;
+        RCLCPP_WARN(get_node()->get_logger(), "Damping complete, transitioning to STOPPED");
     }
 }
 

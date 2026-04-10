@@ -19,6 +19,7 @@
 #include "pi3hat_moteus_int_msgs/msg/joints_command.hpp"
 #include "pi3hat_moteus_int_msgs/msg/joints_states.hpp"
 #include "pi3hat_moteus_int_msgs/msg/packet_pass.hpp"
+#include "std_msgs/msg/u_int8.hpp"
 #include "std_srvs/srv/set_bool.hpp"
 
 #include "omni_controller/wheel_ik.hpp"
@@ -44,6 +45,14 @@ enum ControllerState {
     INACTIVE = 0,
     HOMING,
     ACTIVE,
+};
+
+enum SafetyState {
+    SAFETY_NORMAL = 0,
+    SAFETY_WARNING,
+    SAFETY_CRITICAL,
+    SAFETY_DAMPING,
+    SAFETY_STOPPED,
 };
 
 struct JointHomingConfig {
@@ -97,6 +106,19 @@ private:
     bool pub_odom_ = false;
     bool pub_performance_ = true;
 
+    // ─── Safety parameters ──────────────────────────────────────────────
+    bool safety_enabled_ = true;
+    double temp_warning_threshold_ = 50.0;
+    double temp_critical_threshold_ = 57.0;
+    double battery_min_voltage_ = 24.0;
+    double temp_recovery_hysteresis_ = 5.0;
+    double volt_recovery_hysteresis_ = 1.0;
+    int ema_window_samples_ = 500;
+    double ema_alpha_ = 0.0;
+    std::string critical_strategy_ = "damping";
+    double damping_duration_ = 3.0;
+    double legs_cmd_timeout_ = 0.5;
+
     // ─── Wheel IK ───────────────────────────────────────────────────────
     std::unique_ptr<WheelIK> wheel_ik_;
 
@@ -111,6 +133,24 @@ private:
     int homing_phase_ = 0;
     rclcpp::Time homing_start_time_;
     bool homing_time_initialized_ = false;
+
+    // ─── Safety state ─────────────────────────────────────────────────
+    SafetyState safety_state_ = SafetyState::SAFETY_NORMAL;
+    std::vector<double> temp_ema_; // per motor joint
+    std::vector<double> volt_ema_; // per distributor
+    bool ema_initialized_ = false;
+    int ema_warmup_counter_ = 0; // counts up to ema_window_samples_ before evaluating
+    int warn_throttle_counter_ = 0;
+
+    // Damping state
+    bool damping_time_initialized_ = false;
+    rclcpp::Time damping_start_time_;
+    std::map<std::string, double> damping_q_start_;
+
+    // Leg command timeout
+    rclcpp::Time last_legs_cmd_time_;
+    bool legs_cmd_received_ = false;
+    int legs_timeout_throttle_ = 0;
 
     // ─── Buffered commands (protected by mutex) ─────────────────────────
     std::mutex var_mutex_;
@@ -134,6 +174,7 @@ private:
     rclcpp::Publisher<PacketPass>::SharedPtr per_pub_;
     rclcpp::Publisher<DistributorsState>::SharedPtr dist_pub_;
     rclcpp::Publisher<geometry_msgs::msg::TwistStamped>::SharedPtr odom_pub_;
+    rclcpp::Publisher<std_msgs::msg::UInt8>::SharedPtr safety_pub_;
 
     // Pre-allocated messages
     JointsStates stt_msg_;
@@ -175,6 +216,9 @@ private:
     void write_leg_commands();
     void zero_all_commands();
     void update_homing(const rclcpp::Time& time);
+    void update_safety_monitoring();
+    void evaluate_safety_transitions();
+    void update_damping(const rclcpp::Time& time);
     static double cosine_interp(double a, double b, double t);
 
     // ─── Helpers ────────────────────────────────────────────────────────

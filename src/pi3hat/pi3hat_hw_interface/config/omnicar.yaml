@@ -57,3 +57,15 @@ omni_controller:
     sim: false
     pub_odom: false
     pub_performance: true
+
+    safety:
+      enabled: true
+      temp_warning_threshold: 50.0
+      temp_critical_threshold: 57.0
+      battery_min_voltage: 24.0
+      temp_recovery_hysteresis: 5.0
+      volt_recovery_hysteresis: 1.0
+      ema_window_samples: 5000
+      critical_strategy: "damping"
+      damping_duration: 3.0
+      legs_cmd_timeout: 0.5
