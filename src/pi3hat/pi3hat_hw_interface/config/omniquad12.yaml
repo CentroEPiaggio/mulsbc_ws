@@ -113,7 +113,7 @@ omni_controller:
       RF: RF_WHEEL
       RH: RH_WHEEL
 
-    leg_joints:
+    joints:
       - LF_HFE
       - LF_KFE
       - LH_HFE

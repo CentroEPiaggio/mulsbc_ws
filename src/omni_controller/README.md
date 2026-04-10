@@ -11,7 +11,7 @@ It:
 | Name | Type | Default | Description |
 |---|---|---|---|
 | `wheel_joints.<POS>` | `string` or `string[]` | `""` / `[]` | Wheel joint name(s) per position. Mecanum: `LF`, `LH`, `RF`, `RH` (single string each). Differential: `LEFT`, `RIGHT` (string array each — supports multiple wheels per side for skid-steer). |
-| `leg_joints` | `string[]` | `[]` | Leg joint names (must match URDF) |
+| `joints` | `string[]` | `[]` | Joint names — legs, arms, etc. (must match URDF) |
 | `distributor_names` | `string[]` | `[]` | Power distributor names |
 | `second_encoder_joints` | `string[]` | `[]` | Joints with secondary encoders |
 | `feet_type` | `string` | `"none"` | Wheel IK type: `"mecanum"`, `"differential"`, or `"none"` |
@@ -35,7 +35,7 @@ It:
 | Topic | Type | Direction | Description |
 |---|---|---|---|
 | `~/twist_cmd` | `Twist` | sub | Base velocity command (when `wheel_joints` + IK configured) |
-| `~/legs_cmd` | `JointsCommand` | sub | Per-joint leg commands (when `leg_joints` configured) |
+| `~/legs_cmd` | `JointsCommand` | sub | Per-joint commands (when `joints` configured) |
 | `~/joints_state` | `JointsStates` | pub | All motor joint states |
 | `~/performance` | `PacketPass` | pub | CAN packet loss & cycle duration (when `pub_performance: true`) |
 | `~/distributors_state` | `DistributorsState` | pub | Power distributor states (when `distributor_names` configured) |
@@ -72,7 +72,7 @@ on_activate()
 
 - **`mecanum`**: 4-wheel mecanum inverse kinematics (LF, LH, RF, RH). Requires `wheel_joints.{LF,LH,RF,RH}`, `driveshaft_x`, `driveshaft_y`, `mecanum_angle`, `wheel_rad`.
 - **`differential`**: Differential drive with 1 or more wheels per side. Requires `wheel_joints.{LEFT,RIGHT}` (string arrays), `track_width`, `wheel_rad`. All wheels on the same side receive the same velocity. Odometry averages wheel velocities per side.
-- **`none`**: No IK. Wheel joints still get zero commands when INACTIVE but receive no IK output when ACTIVE (useful for direct joint control via `leg_joints`).
+- **`none`**: No IK. Wheel joints still get zero commands when INACTIVE but receive no IK output when ACTIVE (useful for direct joint control via `joints`).
 
 ## Example Config
 

@@ -93,8 +93,8 @@ private:
     // ─── Configuration ──────────────────────────────────────────────────
     std::vector<std::string> wheel_joints_;
     std::vector<std::vector<std::string>> wheel_groups_; // IK index → joint names
-    std::vector<std::string> leg_joints_;
-    std::vector<std::string> all_motor_joints_; // wheel_joints_ + leg_joints_
+    std::vector<std::string> joints_;
+    std::vector<std::string> all_motor_joints_; // wheel_joints_ + joints_
     std::vector<std::string> distributor_names_;
     std::vector<std::string> second_encoder_joints_;
     std::vector<bool> se_flag_; // per motor joint: has second encoder?
@@ -180,6 +180,7 @@ private:
 
     // ─── Publishers ─────────────────────────────────────────────────────
     rclcpp::Publisher<JointsStates>::SharedPtr stt_pub_;
+    rclcpp::Publisher<JointsCommand>::SharedPtr cmd_pub_;
     rclcpp::Publisher<PacketPass>::SharedPtr per_pub_;
     rclcpp::Publisher<DistributorsState>::SharedPtr dist_pub_;
     rclcpp::Publisher<geometry_msgs::msg::TwistStamped>::SharedPtr odom_pub_;
@@ -187,6 +188,7 @@ private:
 
     // Pre-allocated messages
     JointsStates stt_msg_;
+    JointsCommand cmd_msg_;
     PacketPass per_msg_;
     DistributorsState dist_msg_;
     geometry_msgs::msg::TwistStamped odom_msg_;
@@ -230,6 +232,7 @@ private:
 
     // ─── Update helpers ─────────────────────────────────────────────────
     void publish_joint_states(const rclcpp::Time& time);
+    void publish_joints_command(const rclcpp::Time& time);
     void publish_performance(const rclcpp::Time& time);
     void publish_distributor_states(const rclcpp::Time& time);
     void publish_odometry(const rclcpp::Time& time);
@@ -246,6 +249,8 @@ private:
     // ─── Helpers ────────────────────────────────────────────────────────
     /// Get state interface value by "joint/interface" key. Returns 0.0 if not found.
     double get_state(const std::string& key) const;
+    /// Get command interface value by "joint/interface" key. Returns 0.0 if not found.
+    double get_command(const std::string& key) const;
     /// Set command interface value by "joint/interface" key.
     void set_command(const std::string& key, double value);
 };

@@ -31,7 +31,7 @@ CallbackReturn OmniController::on_init()
         auto_declare<std::vector<std::string>>("wheel_joints.RIGHT", std::vector<std::string>());
 
         // Other joint lists
-        auto_declare<std::vector<std::string>>("leg_joints", std::vector<std::string>());
+        auto_declare<std::vector<std::string>>("joints", std::vector<std::string>());
         auto_declare<std::vector<std::string>>("distributor_names", std::vector<std::string>());
         auto_declare<std::vector<std::string>>("second_encoder_joints", std::vector<std::string>());
 
@@ -117,7 +117,7 @@ CallbackReturn OmniController::on_configure(const rclcpp_lifecycle::State&)
         }
     }
 
-    leg_joints_ = get_node()->get_parameter("leg_joints").as_string_array();
+    joints_ = get_node()->get_parameter("joints").as_string_array();
     distributor_names_ = get_node()->get_parameter("distributor_names").as_string_array();
     second_encoder_joints_ = get_node()->get_parameter("second_encoder_joints").as_string_array();
     sim_flag_ = get_node()->get_parameter("sim").as_bool();
@@ -125,13 +125,13 @@ CallbackReturn OmniController::on_configure(const rclcpp_lifecycle::State&)
     pub_performance_ = get_node()->get_parameter("pub_performance").as_bool();
 
     has_wheels_ = !wheel_joints_.empty();
-    has_legs_ = !leg_joints_.empty();
+    has_legs_ = !joints_.empty();
     has_distributors_ = !distributor_names_.empty();
 
     // ── Build combined motor joint list ─────────────────────────────────
     all_motor_joints_.clear();
     all_motor_joints_.insert(all_motor_joints_.end(), wheel_joints_.begin(), wheel_joints_.end());
-    all_motor_joints_.insert(all_motor_joints_.end(), leg_joints_.begin(), leg_joints_.end());
+    all_motor_joints_.insert(all_motor_joints_.end(), joints_.begin(), joints_.end());
 
     // Build second-encoder flags per motor joint
     se_flag_.resize(all_motor_joints_.size(), false);
@@ -181,7 +181,7 @@ CallbackReturn OmniController::on_configure(const rclcpp_lifecycle::State&)
     }
 
     // ── Initialize leg command buffers ───────────────────────────────────
-    for (const auto& jnt : leg_joints_) {
+    for (const auto& jnt : joints_) {
         leg_pos_cmd_[jnt] = 0.0;
         leg_vel_cmd_[jnt] = 0.0;
         leg_eff_cmd_[jnt] = 0.0;
@@ -210,7 +210,7 @@ CallbackReturn OmniController::on_configure(const rclcpp_lifecycle::State&)
         has_transitions_ = false;
     } else {
         has_transitions_ = true;
-        for (const auto& jnt : leg_joints_) {
+        for (const auto& jnt : joints_) {
             auto_declare<double>("joint_targets." + jnt + ".q_rest", 0.0);
             auto_declare<double>("joint_targets." + jnt + ".q_stand", 0.0);
 
@@ -221,8 +221,7 @@ CallbackReturn OmniController::on_configure(const rclcpp_lifecycle::State&)
             joint_targets_[jnt] = cfg;
         }
         RCLCPP_INFO(
-            get_node()->get_logger(), "Transitions configured for %zu leg joints",
-            leg_joints_.size()
+            get_node()->get_logger(), "Transitions configured for %zu leg joints", joints_.size()
         );
     }
 
@@ -261,7 +260,7 @@ CallbackReturn OmniController::on_configure(const rclcpp_lifecycle::State&)
 
     // Declare default_config parameters for each leg joint (fallback to q_rest = 0.0)
     if (critical_strategy_ == "default_config") {
-        for (const auto& jnt : leg_joints_) {
+        for (const auto& jnt : joints_) {
             double default_q = 0.0;
             if (joint_targets_.count(jnt))
                 default_q = joint_targets_[jnt].q_rest;
@@ -320,6 +319,7 @@ CallbackReturn OmniController::on_configure(const rclcpp_lifecycle::State&)
 
     // ── Publishers ──────────────────────────────────────────────────────
     stt_pub_ = get_node()->create_publisher<JointsStates>("~/joints_state", 5);
+    cmd_pub_ = get_node()->create_publisher<JointsCommand>("~/joints_command", 5);
 
     if (pub_performance_)
         per_pub_ = get_node()->create_publisher<PacketPass>("~/performance", 5);
@@ -389,6 +389,15 @@ CallbackReturn OmniController::on_configure(const rclcpp_lifecycle::State&)
         stt_msg_.sec_enc_vel.resize(n_motors, 0.0);
     }
 
+    cmd_msg_.name.resize(n_motors);
+    cmd_msg_.position.resize(n_motors);
+    cmd_msg_.velocity.resize(n_motors);
+    cmd_msg_.effort.resize(n_motors);
+    cmd_msg_.kp_scale.resize(n_motors);
+    cmd_msg_.kd_scale.resize(n_motors);
+    for (size_t i = 0; i < n_motors; i++)
+        cmd_msg_.name[i] = all_motor_joints_[i];
+
     if (pub_performance_) {
         per_msg_.name.resize(n_motors);
         per_msg_.pack_loss.resize(n_motors);
@@ -406,7 +415,7 @@ CallbackReturn OmniController::on_configure(const rclcpp_lifecycle::State&)
 
     RCLCPP_INFO(
         get_node()->get_logger(), "on_configure successful (wheels=%zu, legs=%zu, dist=%zu)",
-        wheel_joints_.size(), leg_joints_.size(), distributor_names_.size()
+        wheel_joints_.size(), joints_.size(), distributor_names_.size()
     );
     return CallbackReturn::SUCCESS;
 }
@@ -558,6 +567,7 @@ OmniController::update(const rclcpp::Time& time, const rclcpp::Duration&)
     }
 
     // Safety override: CRITICAL / DAMPING / STOPPED take precedence
+    bool safety_handled = false;
     if (safety_enabled_) {
         switch (safety_state_) {
         case SafetyState::SAFETY_CRITICAL:
@@ -577,62 +587,70 @@ OmniController::update(const rclcpp::Time& time, const rclcpp::Duration&)
                 );
                 update_damping(time);
             }
-            return controller_interface::return_type::OK;
+            safety_handled = true;
+            break;
 
         case SafetyState::SAFETY_DAMPING:
             c_stt_ = ControllerState::INACTIVE;
             update_damping(time);
-            return controller_interface::return_type::OK;
+            safety_handled = true;
+            break;
 
         case SafetyState::SAFETY_STOPPED:
             c_stt_ = ControllerState::INACTIVE;
             zero_all_commands();
-            return controller_interface::return_type::OK;
+            safety_handled = true;
+            break;
 
         default:
             break; // NORMAL / WARNING: continue with normal state machine
         }
     }
 
-    // Normal state machine
-    switch (c_stt_) {
-    case ControllerState::INACTIVE:
-        zero_all_commands();
-        break;
-    case ControllerState::TRANSITION:
-        update_transition(time);
-        break;
-    case ControllerState::ACTIVE:
-        if (has_wheels_) {
-            if (wheel_mode_ == WHEEL_IK && wheel_ik_)
-                write_wheel_commands();
-            else if (wheel_mode_ == WHEEL_DIRECT)
-                write_direct_wheel_commands();
-        }
-        if (has_legs_) {
-            // Check leg command timeout
-            if (legs_cmd_received_) {
-                double since_last = (time - last_legs_cmd_time_).seconds();
-                if (since_last > legs_cmd_timeout_) {
-                    // Hold last position — zero feedforward for pure position hold
-                    for (const auto& jnt : leg_joints_) {
-                        leg_vel_cmd_[jnt] = 0.0;
-                        leg_eff_cmd_[jnt] = 0.0;
-                    }
-                    if (++legs_timeout_throttle_ >= 500) {
-                        RCLCPP_WARN(
-                            get_node()->get_logger(),
-                            "Leg command timeout (%.2fs since last cmd), holding position",
-                            since_last
-                        );
-                        legs_timeout_throttle_ = 0;
+    // Normal state machine (skipped when safety override is active)
+    if (!safety_handled) {
+        switch (c_stt_) {
+        case ControllerState::INACTIVE:
+            zero_all_commands();
+            break;
+        case ControllerState::TRANSITION:
+            update_transition(time);
+            break;
+        case ControllerState::ACTIVE:
+            if (has_wheels_) {
+                if (wheel_mode_ == WHEEL_IK && wheel_ik_)
+                    write_wheel_commands();
+                else if (wheel_mode_ == WHEEL_DIRECT)
+                    write_direct_wheel_commands();
+            }
+            if (has_legs_) {
+                // Check leg command timeout
+                if (legs_cmd_received_) {
+                    double since_last = (time - last_legs_cmd_time_).seconds();
+                    if (since_last > legs_cmd_timeout_) {
+                        // Hold last position — zero feedforward for pure position hold
+                        for (const auto& jnt : joints_) {
+                            leg_vel_cmd_[jnt] = 0.0;
+                            leg_eff_cmd_[jnt] = 0.0;
+                        }
+                        if (++legs_timeout_throttle_ >= 500) {
+                            RCLCPP_WARN(
+                                get_node()->get_logger(),
+                                "Leg command timeout (%.2fs since last cmd), holding position",
+                                since_last
+                            );
+                            legs_timeout_throttle_ = 0;
+                        }
                     }
                 }
+                write_leg_commands();
             }
-            write_leg_commands();
+            break;
         }
-        break;
     }
+
+    // Phase 3: Publish actual commands being sent to hardware
+    publish_joints_command(time);
 
     return controller_interface::return_type::OK;
 }
@@ -691,7 +709,7 @@ void OmniController::activate_service_cb(
     if (c_stt_ == ControllerState::INACTIVE && req->data) {
         // Snap leg commands to actual positions to prevent jumps
         if (has_legs_) {
-            for (const auto& jnt : leg_joints_) {
+            for (const auto& jnt : joints_) {
                 leg_pos_cmd_[jnt] = get_state(jnt + "/" + hardware_interface::HW_IF_POSITION);
                 leg_vel_cmd_[jnt] = 0.0;
                 leg_eff_cmd_[jnt] = 0.0;
@@ -792,6 +810,20 @@ void OmniController::publish_joint_states(const rclcpp::Time& time)
     stt_pub_->publish(stt_msg_);
 }
 
+void OmniController::publish_joints_command(const rclcpp::Time& time)
+{
+    cmd_msg_.header.set__stamp(time);
+    for (size_t i = 0; i < all_motor_joints_.size(); i++) {
+        const auto& jnt = all_motor_joints_[i];
+        cmd_msg_.position[i] = get_command(jnt + "/" + hardware_interface::HW_IF_POSITION);
+        cmd_msg_.velocity[i] = get_command(jnt + "/" + hardware_interface::HW_IF_VELOCITY);
+        cmd_msg_.effort[i] = get_command(jnt + "/" + hardware_interface::HW_IF_EFFORT);
+        cmd_msg_.kp_scale[i] = get_command(jnt + "/" + hw_if::KP_SCALE);
+        cmd_msg_.kd_scale[i] = get_command(jnt + "/" + hw_if::KD_SCALE);
+    }
+    cmd_pub_->publish(cmd_msg_);
+}
+
 void OmniController::publish_performance(const rclcpp::Time& time)
 {
     per_msg_.header.set__stamp(time);
@@ -876,7 +908,7 @@ void OmniController::write_direct_wheel_commands()
 
 void OmniController::write_leg_commands()
 {
-    for (const auto& jnt : leg_joints_) {
+    for (const auto& jnt : joints_) {
         set_command(jnt + "/" + hardware_interface::HW_IF_POSITION, leg_pos_cmd_[jnt]);
         set_command(jnt + "/" + hardware_interface::HW_IF_VELOCITY, leg_vel_cmd_[jnt]);
         set_command(jnt + "/" + hardware_interface::HW_IF_EFFORT, leg_eff_cmd_[jnt]);
@@ -969,7 +1001,7 @@ void OmniController::update_transition(const rclcpp::Time& time)
         transition_time_initialized_ = true;
 
         // Read current joint positions as the actual origin
-        for (const auto& jnt : leg_joints_)
+        for (const auto& jnt : joints_)
             transition_q_start_[jnt] = get_state(jnt + "/" + hardware_interface::HW_IF_POSITION);
     }
 
@@ -978,7 +1010,7 @@ void OmniController::update_transition(const rclcpp::Time& time)
     double t = std::clamp(elapsed / duration, 0.0, 1.0);
 
     // Interpolate leg joints: current_pos → target
-    for (const auto& jnt : leg_joints_) {
+    for (const auto& jnt : joints_) {
         const auto& cfg = joint_targets_[jnt];
         double q_target = (transition_target_ == TARGET_REST) ? cfg.q_rest : cfg.q_stand;
         double q = cosine_interp(transition_q_start_[jnt], q_target, t);
@@ -1007,7 +1039,7 @@ void OmniController::update_transition(const rclcpp::Time& time)
 
     // Transition complete
     if (t >= 1.0) {
-        for (const auto& jnt : leg_joints_) {
+        for (const auto& jnt : joints_) {
             const auto& cfg = joint_targets_[jnt];
             double q_target = (transition_target_ == TARGET_REST) ? cfg.q_rest : cfg.q_stand;
             leg_pos_cmd_[jnt] = q_target;
@@ -1147,7 +1179,7 @@ void OmniController::update_damping(const rclcpp::Time& time)
         damping_start_time_ = time;
         damping_time_initialized_ = true;
         // Record current positions for all leg joints
-        for (const auto& jnt : leg_joints_)
+        for (const auto& jnt : joints_)
             damping_q_start_[jnt] = get_state(jnt + "/" + hardware_interface::HW_IF_POSITION);
     }
 
@@ -1170,7 +1202,7 @@ void OmniController::update_damping(const rclcpp::Time& time)
     if (critical_strategy_ == "damping") {
         // Hold current position, ramp kp_scale from 1.0 → 0.0 via cosine
         double kp_scale = cosine_interp(1.0, 0.0, t);
-        for (const auto& jnt : leg_joints_) {
+        for (const auto& jnt : joints_) {
             set_command(jnt + "/" + hardware_interface::HW_IF_POSITION, damping_q_start_[jnt]);
             set_command(jnt + "/" + hardware_interface::HW_IF_VELOCITY, 0.0);
             set_command(jnt + "/" + hardware_interface::HW_IF_EFFORT, 0.0);
@@ -1181,7 +1213,7 @@ void OmniController::update_damping(const rclcpp::Time& time)
         }
     } else {
         // "default_config": interpolate to safe positions, kp stays at 1.0
-        for (const auto& jnt : leg_joints_) {
+        for (const auto& jnt : joints_) {
             double target_q = 0.0;
             try {
                 target_q =
@@ -1218,6 +1250,14 @@ double OmniController::get_state(const std::string& key) const
     auto it = stt_idx_.find(key);
     if (it != stt_idx_.end())
         return state_interfaces_[it->second].get_value();
+    return 0.0;
+}
+
+double OmniController::get_command(const std::string& key) const
+{
+    auto it = cmd_idx_.find(key);
+    if (it != cmd_idx_.end())
+        return command_interfaces_[it->second].get_value();
     return 0.0;
 }
 

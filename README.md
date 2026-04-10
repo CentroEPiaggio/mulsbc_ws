@@ -102,7 +102,7 @@ ros2 service call /omni_controller/emergency_srv std_srvs/srv/SetBool "{data: tr
 | Topic                        | Message Type                               | Description                                                                                                                                     |
 | ---------------------------- | ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
 | `/omni_controller/twist_cmd` | `geometry_msgs/msg/Twist`                  | Base velocity: `linear.x` (forward), `linear.y` (left), `angular.z` (CCW). QoS: BestEffort with deadline at `input_frequency` (default 100 Hz). |
-| `/omni_controller/legs_cmd`  | `pi3hat_moteus_int_msgs/msg/JointsCommand` | Leg joint commands (position, velocity, effort, kp/kd scaling). QoS: Reliable. Only active when `leg_joints` are configured.                    |
+| `/omni_controller/legs_cmd`  | `pi3hat_moteus_int_msgs/msg/JointsCommand` | Joint commands (position, velocity, effort, kp/kd scaling). QoS: Reliable. Only active when `joints` are configured.                    |
 
 ### Output Topics (user subscribes)
 
@@ -169,7 +169,7 @@ omni_controller:
       RH: RH_WHEEL
 
     # Optional: leg joints (omit or leave commented out if not used)
-    # leg_joints:
+    # joints:
     #     - LF_HFE
     #     - LF_KFE
 
