@@ -137,17 +137,18 @@ omni_controller:
     #     - RH_HFE
     #     - RH_KFE
 
-    # Homing
-    homing_phases: [5.0]
-    homing_config:
-      LF_HFE: { qi: 0.0, qf: -0.56 }
-      LF_KFE: { qi: 0.0, qf: 1.8 }
-      LH_HFE: { qi: 0.0, qf: 0.56 }
-      LH_KFE: { qi: 0.0, qf: -1.8 }
-      RF_HFE: { qi: 0.0, qf: 0.56 }
-      RF_KFE: { qi: 0.0, qf: -1.8 }
-      RH_HFE: { qi: 0.0, qf: -0.56 }
-      RH_KFE: { qi: 0.0, qf: 1.8 }
+    # Transitions (rest / stand)
+    rest_duration: 5.0
+    stand_duration: 5.0
+    joint_targets:
+      LF_HFE: { q_rest: 0.0, q_stand: -0.56 }
+      LF_KFE: { q_rest: 0.0, q_stand: 1.8 }
+      LH_HFE: { q_rest: 0.0, q_stand: 0.56 }
+      LH_KFE: { q_rest: 0.0, q_stand: -1.8 }
+      RF_HFE: { q_rest: 0.0, q_stand: 0.56 }
+      RF_KFE: { q_rest: 0.0, q_stand: -1.8 }
+      RH_HFE: { q_rest: 0.0, q_stand: -0.56 }
+      RH_KFE: { q_rest: 0.0, q_stand: 1.8 }
 
     # Wheel IK
     feet_type: mecanum

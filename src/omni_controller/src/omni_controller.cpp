@@ -52,8 +52,9 @@ CallbackReturn OmniController::on_init()
         auto_declare<bool>("pub_odom", false);
         auto_declare<bool>("pub_performance", true);
 
-        // Homing
-        auto_declare<std::vector<double>>("homing_phases", std::vector<double>());
+        // Transitions (rest / stand)
+        auto_declare<double>("rest_duration", 0.0);
+        auto_declare<double>("stand_duration", 0.0);
 
         // Safety
         auto_declare<bool>("safety.enabled", true);
@@ -187,37 +188,26 @@ CallbackReturn OmniController::on_configure(const rclcpp_lifecycle::State&)
         leg_kd_cmd_[jnt] = 1.0;
     }
 
-    // ── Homing configuration ────────────────────────────────────────────
-    homing_phase_durations_ = get_node()->get_parameter("homing_phases").as_double_array();
-    if (homing_phase_durations_.empty() || !has_legs_) {
-        has_homing_ = false;
+    // ── Transition configuration (rest / stand) ──────────────────────────
+    rest_duration_ = get_node()->get_parameter("rest_duration").as_double();
+    stand_duration_ = get_node()->get_parameter("stand_duration").as_double();
+    if ((rest_duration_ <= 0.0 && stand_duration_ <= 0.0) || !has_legs_) {
+        has_transitions_ = false;
     } else {
-        if (homing_phase_durations_.size() < 1 || homing_phase_durations_.size() > 2) {
-            RCLCPP_ERROR(
-                get_node()->get_logger(), "homing_phases must have 1 or 2 entries, got %zu",
-                homing_phase_durations_.size()
-            );
-            return CallbackReturn::ERROR;
-        }
-        has_homing_ = true;
-        bool has_qm = (homing_phase_durations_.size() == 2);
-
+        has_transitions_ = true;
         for (const auto& jnt : leg_joints_) {
-            auto_declare<double>("homing_config." + jnt + ".qi", 0.0);
-            auto_declare<double>("homing_config." + jnt + ".qf", 0.0);
+            auto_declare<double>("joint_targets." + jnt + ".q_rest", 0.0);
+            auto_declare<double>("joint_targets." + jnt + ".q_stand", 0.0);
 
-            JointHomingConfig cfg;
-            cfg.qi = get_node()->get_parameter("homing_config." + jnt + ".qi").as_double();
-            cfg.qf = get_node()->get_parameter("homing_config." + jnt + ".qf").as_double();
-            cfg.has_qm = has_qm;
-            if (has_qm) {
-                auto_declare<double>("homing_config." + jnt + ".qm", 0.0);
-                cfg.qm = get_node()->get_parameter("homing_config." + jnt + ".qm").as_double();
-            }
-            homing_config_[jnt] = cfg;
+            JointTargets cfg;
+            cfg.q_rest = get_node()->get_parameter("joint_targets." + jnt + ".q_rest").as_double();
+            cfg.q_stand =
+                get_node()->get_parameter("joint_targets." + jnt + ".q_stand").as_double();
+            joint_targets_[jnt] = cfg;
         }
         RCLCPP_INFO(
-            get_node()->get_logger(), "Homing configured for %zu leg joints", leg_joints_.size()
+            get_node()->get_logger(), "Transitions configured for %zu leg joints",
+            leg_joints_.size()
         );
     }
 
@@ -254,12 +244,12 @@ CallbackReturn OmniController::on_configure(const rclcpp_lifecycle::State&)
     temp_ema_.resize(all_motor_joints_.size(), 0.0);
     volt_ema_.resize(distributor_names_.size(), 0.0);
 
-    // Declare default_config parameters for each leg joint (fallback to homing qi = 0.0)
+    // Declare default_config parameters for each leg joint (fallback to q_rest = 0.0)
     if (critical_strategy_ == "default_config") {
         for (const auto& jnt : leg_joints_) {
             double default_q = 0.0;
-            if (homing_config_.count(jnt))
-                default_q = homing_config_[jnt].qi;
+            if (joint_targets_.count(jnt))
+                default_q = joint_targets_[jnt].q_rest;
             auto_declare<double>("safety.default_config." + jnt + ".q", default_q);
         }
     }
@@ -333,12 +323,18 @@ CallbackReturn OmniController::on_configure(const rclcpp_lifecycle::State&)
                            )
     );
 
-    if (has_homing_) {
-        homing_srv_ = get_node()->create_service<TransactionService>(
-            "~/homing_srv", std::bind(
-                                &OmniController::homing_service_cb, this, std::placeholders::_1,
-                                std::placeholders::_2
-                            )
+    if (has_transitions_) {
+        rest_srv_ = get_node()->create_service<TransactionService>(
+            "~/rest_srv",
+            std::bind(
+                &OmniController::rest_service_cb, this, std::placeholders::_1, std::placeholders::_2
+            )
+        );
+        stand_srv_ = get_node()->create_service<TransactionService>(
+            "~/stand_srv", std::bind(
+                               &OmniController::stand_service_cb, this, std::placeholders::_1,
+                               std::placeholders::_2
+                           )
         );
     }
 
@@ -569,8 +565,8 @@ OmniController::update(const rclcpp::Time& time, const rclcpp::Duration&)
     case ControllerState::INACTIVE:
         zero_all_commands();
         break;
-    case ControllerState::HOMING:
-        update_homing(time);
+    case ControllerState::TRANSITION:
+        update_transition(time);
         break;
     case ControllerState::ACTIVE:
         if (has_wheels_ && wheel_ik_)
@@ -621,7 +617,7 @@ void OmniController::twist_callback(const geometry_msgs::msg::Twist::SharedPtr m
 void OmniController::legs_callback(const JointsCommand::SharedPtr msg)
 {
     std::lock_guard<std::mutex> lg(var_mutex_);
-    if (c_stt_ == ControllerState::HOMING)
+    if (c_stt_ == ControllerState::TRANSITION)
         return;
     last_legs_cmd_time_ = get_node()->now();
     legs_cmd_received_ = true;
@@ -812,10 +808,10 @@ void OmniController::zero_all_commands()
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-//  Homing
+//  Transitions (rest / stand)
 // ═══════════════════════════════════════════════════════════════════════════
 
-void OmniController::homing_service_cb(
+void OmniController::rest_service_cb(
     const TransactionService::Request::SharedPtr req,
     const TransactionService::Response::SharedPtr res
 )
@@ -823,20 +819,46 @@ void OmniController::homing_service_cb(
     std::lock_guard<std::mutex> lg(var_mutex_);
     if (safety_enabled_ && safety_state_ != SafetyState::SAFETY_NORMAL) {
         res->success = false;
-        res->message = "Cannot start homing: safety state is not NORMAL";
+        res->message = "Cannot start rest: safety state is not NORMAL";
         return;
     }
-    if ((c_stt_ == ControllerState::INACTIVE || c_stt_ == ControllerState::ACTIVE) && has_homing_ &&
-        req->data) {
-        homing_phase_ = 0;
-        homing_time_initialized_ = false;
-        c_stt_ = ControllerState::HOMING;
+    if ((c_stt_ == ControllerState::INACTIVE || c_stt_ == ControllerState::ACTIVE) &&
+        has_transitions_ && req->data) {
+        transition_target_ = TARGET_REST;
+        transition_time_initialized_ = false;
+        c_stt_ = ControllerState::TRANSITION;
         res->success = true;
-        res->message = "Homing started";
-        RCLCPP_INFO(get_node()->get_logger(), "Homing started");
+        res->message = "Rest transition started";
+        RCLCPP_INFO(get_node()->get_logger(), "Transition started (target: rest)");
     } else {
         res->success = false;
-        res->message = req->data ? "Cannot start homing (already HOMING or no homing config)"
+        res->message = req->data ? "Cannot start rest (already transitioning or not configured)"
+                                 : "Invalid request";
+    }
+}
+
+void OmniController::stand_service_cb(
+    const TransactionService::Request::SharedPtr req,
+    const TransactionService::Response::SharedPtr res
+)
+{
+    std::lock_guard<std::mutex> lg(var_mutex_);
+    if (safety_enabled_ && safety_state_ != SafetyState::SAFETY_NORMAL) {
+        res->success = false;
+        res->message = "Cannot start stand: safety state is not NORMAL";
+        return;
+    }
+    if ((c_stt_ == ControllerState::INACTIVE || c_stt_ == ControllerState::ACTIVE) &&
+        has_transitions_ && req->data) {
+        transition_target_ = TARGET_STAND;
+        transition_time_initialized_ = false;
+        c_stt_ = ControllerState::TRANSITION;
+        res->success = true;
+        res->message = "Stand transition started";
+        RCLCPP_INFO(get_node()->get_logger(), "Transition started (target: stand)");
+    } else {
+        res->success = false;
+        res->message = req->data ? "Cannot start stand (already transitioning or not configured)"
                                  : "Invalid request";
     }
 }
@@ -846,38 +868,27 @@ double OmniController::cosine_interp(double a, double b, double t)
     return a + 0.5 * (1.0 - std::cos(M_PI * t)) * (b - a);
 }
 
-void OmniController::update_homing(const rclcpp::Time& time)
+void OmniController::update_transition(const rclcpp::Time& time)
 {
-    // Initialize timer on first call of each phase
-    if (!homing_time_initialized_) {
-        homing_start_time_ = time;
-        homing_time_initialized_ = true;
+    // Initialize timer on first call
+    if (!transition_time_initialized_) {
+        transition_start_time_ = time;
+        transition_time_initialized_ = true;
 
-        // On phase 0 start, read current joint positions as the actual origin
-        if (homing_phase_ == 0) {
-            for (const auto& jnt : leg_joints_)
-                homing_q_start_[jnt] = get_state(jnt + "/" + hardware_interface::HW_IF_POSITION);
-        }
+        // Read current joint positions as the actual origin
+        for (const auto& jnt : leg_joints_)
+            transition_q_start_[jnt] = get_state(jnt + "/" + hardware_interface::HW_IF_POSITION);
     }
 
-    double elapsed = (time - homing_start_time_).seconds();
-    double duration = homing_phase_durations_[static_cast<size_t>(homing_phase_)];
+    double duration = (transition_target_ == TARGET_REST) ? rest_duration_ : stand_duration_;
+    double elapsed = (time - transition_start_time_).seconds();
     double t = std::clamp(elapsed / duration, 0.0, 1.0);
 
-    // Interpolate leg joints
+    // Interpolate leg joints: current_pos → target
     for (const auto& jnt : leg_joints_) {
-        const auto& cfg = homing_config_[jnt];
-        double q_start, q_end;
-        if (!cfg.has_qm) {
-            // Single phase: hardware_pos → qf
-            q_start = homing_q_start_[jnt];
-            q_end = cfg.qf;
-        } else {
-            // Two phases: phase 0: hardware_pos → qm, phase 1: qm → qf
-            q_start = (homing_phase_ == 0) ? homing_q_start_[jnt] : cfg.qm;
-            q_end = (homing_phase_ == 0) ? cfg.qm : cfg.qf;
-        }
-        double q = cosine_interp(q_start, q_end, t);
+        const auto& cfg = joint_targets_[jnt];
+        double q_target = (transition_target_ == TARGET_REST) ? cfg.q_rest : cfg.q_stand;
+        double q = cosine_interp(transition_q_start_[jnt], q_target, t);
 
         set_command(jnt + "/" + hardware_interface::HW_IF_POSITION, q);
         set_command(jnt + "/" + hardware_interface::HW_IF_VELOCITY, 0.0);
@@ -888,7 +899,7 @@ void OmniController::update_homing(const rclcpp::Time& time)
         }
     }
 
-    // Lock wheels during homing
+    // Lock wheels during transition
     if (has_wheels_) {
         for (const auto& jnt : wheel_joints_) {
             set_command(jnt + "/" + hardware_interface::HW_IF_VELOCITY, 0.0);
@@ -901,27 +912,23 @@ void OmniController::update_homing(const rclcpp::Time& time)
         }
     }
 
-    // Handle phase transitions (after commands are written)
+    // Transition complete
     if (t >= 1.0) {
-        bool two_phase = (homing_phase_durations_.size() == 2);
-        if (two_phase && homing_phase_ == 0) {
-            homing_phase_ = 1;
-            homing_time_initialized_ = false;
-            RCLCPP_INFO(get_node()->get_logger(), "Homing phase 0 complete, starting phase 1");
-        } else {
-            // Homing complete — set leg buffers to qf for future ACTIVE use
-            for (const auto& jnt : leg_joints_) {
-                const auto& cfg = homing_config_[jnt];
-                leg_pos_cmd_[jnt] = cfg.qf;
-                leg_vel_cmd_[jnt] = 0.0;
-                leg_eff_cmd_[jnt] = 0.0;
-                leg_kp_cmd_[jnt] = 1.0;
-                leg_kd_cmd_[jnt] = 1.0;
-            }
-            homing_completed_ = true;
-            c_stt_ = ControllerState::ACTIVE;
-            RCLCPP_INFO(get_node()->get_logger(), "Homing complete, transitioning to ACTIVE");
+        for (const auto& jnt : leg_joints_) {
+            const auto& cfg = joint_targets_[jnt];
+            double q_target = (transition_target_ == TARGET_REST) ? cfg.q_rest : cfg.q_stand;
+            leg_pos_cmd_[jnt] = q_target;
+            leg_vel_cmd_[jnt] = 0.0;
+            leg_eff_cmd_[jnt] = 0.0;
+            leg_kp_cmd_[jnt] = 1.0;
+            leg_kd_cmd_[jnt] = 1.0;
         }
+        transition_completed_ = true;
+        c_stt_ = ControllerState::ACTIVE;
+        RCLCPP_INFO(
+            get_node()->get_logger(), "Transition to %s complete, transitioning to ACTIVE",
+            (transition_target_ == TARGET_REST) ? "rest" : "stand"
+        );
     }
 }
 
@@ -1087,9 +1094,9 @@ void OmniController::update_damping(const rclcpp::Time& time)
                 target_q =
                     get_node()->get_parameter("safety.default_config." + jnt + ".q").as_double();
             } catch (...) {
-                // Fallback to homing qi
-                if (homing_config_.count(jnt))
-                    target_q = homing_config_[jnt].qi;
+                // Fallback to q_rest
+                if (joint_targets_.count(jnt))
+                    target_q = joint_targets_[jnt].q_rest;
             }
             double q = cosine_interp(damping_q_start_[jnt], target_q, t);
             set_command(jnt + "/" + hardware_interface::HW_IF_POSITION, q);

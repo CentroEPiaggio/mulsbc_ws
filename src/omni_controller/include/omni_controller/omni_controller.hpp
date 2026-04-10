@@ -43,7 +43,7 @@ constexpr char CYCLE_DUR[] = "cycle_duration";
 
 enum ControllerState {
     INACTIVE = 0,
-    HOMING,
+    TRANSITION,
     ACTIVE,
 };
 
@@ -55,12 +55,12 @@ enum SafetyState {
     SAFETY_STOPPED,
 };
 
-struct JointHomingConfig {
-    double qi = 0.0;
-    double qm = 0.0;
-    double qf = 0.0;
-    bool has_qm = false;
+struct JointTargets {
+    double q_rest = 0.0;
+    double q_stand = 0.0;
 };
+
+enum TransitionTarget { TARGET_REST = 0, TARGET_STAND };
 
 using CallbackReturn = rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn;
 using TransactionService = std_srvs::srv::SetBool;
@@ -100,8 +100,8 @@ private:
     bool has_wheels_ = false;
     bool has_legs_ = false;
     bool has_distributors_ = false;
-    bool has_homing_ = false;
-    bool homing_completed_ = false;
+    bool has_transitions_ = false;
+    bool transition_completed_ = false;
     bool sim_flag_ = false;
     bool pub_odom_ = false;
     bool pub_performance_ = true;
@@ -126,13 +126,14 @@ private:
     ControllerState c_stt_ = ControllerState::INACTIVE;
     std::atomic<int> dl_miss_count_{0};
 
-    // ─── Homing ─────────────────────────────────────────────────────────
-    std::vector<double> homing_phase_durations_;
-    std::map<std::string, JointHomingConfig> homing_config_;
-    std::map<std::string, double> homing_q_start_; // actual joint pos at homing start
-    int homing_phase_ = 0;
-    rclcpp::Time homing_start_time_;
-    bool homing_time_initialized_ = false;
+    // ─── Transitions (rest / stand) ────────────────────────────────────
+    double rest_duration_ = 5.0;
+    double stand_duration_ = 5.0;
+    std::map<std::string, JointTargets> joint_targets_;
+    std::map<std::string, double> transition_q_start_;
+    TransitionTarget transition_target_ = TARGET_REST;
+    rclcpp::Time transition_start_time_;
+    bool transition_time_initialized_ = false;
 
     // ─── Safety state ─────────────────────────────────────────────────
     SafetyState safety_state_ = SafetyState::SAFETY_NORMAL;
@@ -189,7 +190,8 @@ private:
     // ─── Services ───────────────────────────────────────────────────────
     rclcpp::Service<TransactionService>::SharedPtr activate_srv_;
     rclcpp::Service<TransactionService>::SharedPtr emergency_srv_;
-    rclcpp::Service<TransactionService>::SharedPtr homing_srv_;
+    rclcpp::Service<TransactionService>::SharedPtr rest_srv_;
+    rclcpp::Service<TransactionService>::SharedPtr stand_srv_;
 
     // ─── Callbacks ──────────────────────────────────────────────────────
     void twist_callback(const geometry_msgs::msg::Twist::SharedPtr msg);
@@ -202,7 +204,11 @@ private:
         const TransactionService::Request::SharedPtr req,
         const TransactionService::Response::SharedPtr res
     );
-    void homing_service_cb(
+    void rest_service_cb(
+        const TransactionService::Request::SharedPtr req,
+        const TransactionService::Response::SharedPtr res
+    );
+    void stand_service_cb(
         const TransactionService::Request::SharedPtr req,
         const TransactionService::Response::SharedPtr res
     );
@@ -215,7 +221,7 @@ private:
     void write_wheel_commands();
     void write_leg_commands();
     void zero_all_commands();
-    void update_homing(const rclcpp::Time& time);
+    void update_transition(const rclcpp::Time& time);
     void update_safety_monitoring();
     void evaluate_safety_transitions();
     void update_damping(const rclcpp::Time& time);
