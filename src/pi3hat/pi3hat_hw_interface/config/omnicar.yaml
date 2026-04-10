@@ -72,3 +72,4 @@ omni_controller:
       critical_strategy: "damping"
       damping_duration: 3.0 # [s] ramp-down time when critical_strategy is "damping"
       legs_cmd_timeout: 0.5 # [s] if no leg command received for this long, zero leg torques
+      heartbeat_timeout: 1.0 # [s] NUC heartbeat timeout; 0 disables (only checked after first heartbeat)

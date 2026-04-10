@@ -19,6 +19,7 @@
 #include "pi3hat_moteus_int_msgs/msg/joints_command.hpp"
 #include "pi3hat_moteus_int_msgs/msg/joints_states.hpp"
 #include "pi3hat_moteus_int_msgs/msg/packet_pass.hpp"
+#include "std_msgs/msg/empty.hpp"
 #include "std_msgs/msg/u_int8.hpp"
 #include "std_srvs/srv/set_bool.hpp"
 
@@ -120,6 +121,7 @@ private:
     std::string critical_strategy_ = "damping";
     double damping_duration_ = 3.0;
     double legs_cmd_timeout_ = 0.5;
+    double heartbeat_timeout_ = 1.0;
 
     // ─── Wheel IK / direct mode ────────────────────────────────────────
     std::unique_ptr<WheelIK> wheel_ik_;
@@ -155,6 +157,10 @@ private:
     rclcpp::Time last_legs_cmd_time_;
     bool legs_cmd_received_ = false;
     int legs_timeout_throttle_ = 0;
+
+    // NUC heartbeat monitoring
+    rclcpp::Time last_heartbeat_time_;
+    bool heartbeat_received_ = false;
 
     // ─── Buffered commands (protected by mutex) ─────────────────────────
     std::mutex var_mutex_;
@@ -197,6 +203,7 @@ private:
     rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr twist_sub_;
     rclcpp::Subscription<JointsCommand>::SharedPtr legs_sub_;
     rclcpp::Subscription<JointsCommand>::SharedPtr direct_wheels_sub_;
+    rclcpp::Subscription<std_msgs::msg::Empty>::SharedPtr heartbeat_sub_;
 
     // ─── Services ───────────────────────────────────────────────────────
     rclcpp::Service<TransactionService>::SharedPtr activate_srv_;
@@ -225,6 +232,7 @@ private:
         const TransactionService::Response::SharedPtr res
     );
     void direct_wheels_callback(const JointsCommand::SharedPtr msg);
+    void heartbeat_callback(const std_msgs::msg::Empty::SharedPtr msg);
     void wheel_mode_service_cb(
         const TransactionService::Request::SharedPtr req,
         const TransactionService::Response::SharedPtr res

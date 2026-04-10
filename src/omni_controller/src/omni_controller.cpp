@@ -68,6 +68,7 @@ CallbackReturn OmniController::on_init()
         auto_declare<std::string>("safety.critical_strategy", "damping");
         auto_declare<double>("safety.damping_duration", 3.0);
         auto_declare<double>("safety.legs_cmd_timeout", 0.5);
+        auto_declare<double>("safety.heartbeat_timeout", 1.0);
     } catch (const std::exception& e) {
         RCLCPP_ERROR(
             get_node()->get_logger(), "Exception during parameter declaration: %s", e.what()
@@ -240,6 +241,7 @@ CallbackReturn OmniController::on_configure(const rclcpp_lifecycle::State&)
     critical_strategy_ = get_node()->get_parameter("safety.critical_strategy").as_string();
     damping_duration_ = get_node()->get_parameter("safety.damping_duration").as_double();
     legs_cmd_timeout_ = get_node()->get_parameter("safety.legs_cmd_timeout").as_double();
+    heartbeat_timeout_ = get_node()->get_parameter("safety.heartbeat_timeout").as_double();
 
     if (critical_strategy_ != "damping" && critical_strategy_ != "default_config" &&
         critical_strategy_ != "stop") {
@@ -314,6 +316,16 @@ CallbackReturn OmniController::on_configure(const rclcpp_lifecycle::State&)
         direct_wheels_sub_ = get_node()->create_subscription<JointsCommand>(
             "~/direct_wheels_cmd", direct_qos,
             std::bind(&OmniController::direct_wheels_callback, this, std::placeholders::_1)
+        );
+    }
+
+    // Heartbeat subscriber (BestEffort, depth 1)
+    if (safety_enabled_ && heartbeat_timeout_ > 0.0) {
+        rclcpp::QoS hb_qos(1);
+        hb_qos.best_effort();
+        heartbeat_sub_ = get_node()->create_subscription<std_msgs::msg::Empty>(
+            "/nuc_heartbeat", hb_qos,
+            std::bind(&OmniController::heartbeat_callback, this, std::placeholders::_1)
         );
     }
 
@@ -450,6 +462,7 @@ CallbackReturn OmniController::on_activate(const rclcpp_lifecycle::State&)
     damping_time_initialized_ = false;
     legs_cmd_received_ = false;
     legs_timeout_throttle_ = 0;
+    heartbeat_received_ = false;
 
     RCLCPP_INFO(
         get_node()->get_logger(), "on_activate successful (INACTIVE, waiting for activate_srv)"
@@ -668,6 +681,13 @@ void OmniController::twist_callback(const geometry_msgs::msg::Twist::SharedPtr m
         base_vel_[1] = msg->linear.y;
         base_vel_[2] = msg->angular.z;
     }
+}
+
+void OmniController::heartbeat_callback(const std_msgs::msg::Empty::SharedPtr /*msg*/)
+{
+    std::lock_guard<std::mutex> lg(var_mutex_);
+    last_heartbeat_time_ = get_node()->now();
+    heartbeat_received_ = true;
 }
 
 void OmniController::legs_callback(const JointsCommand::SharedPtr msg)
@@ -1113,13 +1133,39 @@ void OmniController::evaluate_safety_transitions()
             min_volt = volt_ema_[i];
     }
 
+    // Check NUC heartbeat (only after first heartbeat received, and if timeout > 0)
+    bool heartbeat_lost = (heartbeat_timeout_ > 0.0) && heartbeat_received_ &&
+                          (get_node()->now() - last_heartbeat_time_).seconds() > heartbeat_timeout_;
+
+    // Pre-compute condition flags for critical triggers
+    bool over_temp = max_temp > temp_critical_threshold_;
+    bool under_volt = has_volt && min_volt < battery_min_voltage_;
+
+    // Build reason string for SAFETY_CRITICAL log
+    auto build_reason = [&]() -> std::string {
+        std::string reason;
+        if (heartbeat_lost)
+            reason += "NUC heartbeat lost";
+        if (over_temp) {
+            if (!reason.empty())
+                reason += ", ";
+            reason += "motor over-temperature";
+        }
+        if (under_volt) {
+            if (!reason.empty())
+                reason += ", ";
+            reason += "battery under-voltage";
+        }
+        return reason;
+    };
+
     switch (safety_state_) {
     case SafetyState::SAFETY_NORMAL:
-        if (max_temp > temp_critical_threshold_ || (has_volt && min_volt < battery_min_voltage_)) {
+        if (over_temp || under_volt || heartbeat_lost) {
             safety_state_ = SafetyState::SAFETY_CRITICAL;
             RCLCPP_ERROR(
-                get_node()->get_logger(), "SAFETY CRITICAL: temp=%.1f°C (%s), volt=%.1fV", max_temp,
-                hottest_joint.c_str(), has_volt ? min_volt : 0.0
+                get_node()->get_logger(), "SAFETY CRITICAL [%s]: temp=%.1f°C (%s), volt=%.1fV",
+                build_reason().c_str(), max_temp, hottest_joint.c_str(), has_volt ? min_volt : 0.0
             );
         } else if (max_temp > temp_warning_threshold_) {
             safety_state_ = SafetyState::SAFETY_WARNING;
@@ -1131,11 +1177,11 @@ void OmniController::evaluate_safety_transitions()
         break;
 
     case SafetyState::SAFETY_WARNING:
-        if (max_temp > temp_critical_threshold_ || (has_volt && min_volt < battery_min_voltage_)) {
+        if (over_temp || under_volt || heartbeat_lost) {
             safety_state_ = SafetyState::SAFETY_CRITICAL;
             RCLCPP_ERROR(
-                get_node()->get_logger(), "SAFETY CRITICAL: temp=%.1f°C (%s), volt=%.1fV", max_temp,
-                hottest_joint.c_str(), has_volt ? min_volt : 0.0
+                get_node()->get_logger(), "SAFETY CRITICAL [%s]: temp=%.1f°C (%s), volt=%.1fV",
+                build_reason().c_str(), max_temp, hottest_joint.c_str(), has_volt ? min_volt : 0.0
             );
         } else if (max_temp < temp_warning_threshold_ - temp_recovery_hysteresis_) {
             safety_state_ = SafetyState::SAFETY_NORMAL;
@@ -1156,7 +1202,10 @@ void OmniController::evaluate_safety_transitions()
         // Check recovery conditions
         bool temp_ok = max_temp < (temp_warning_threshold_ - temp_recovery_hysteresis_);
         bool volt_ok = !has_volt || (min_volt > battery_min_voltage_ + volt_recovery_hysteresis_);
-        if (temp_ok && volt_ok) {
+        bool heartbeat_ok =
+            !heartbeat_received_ || (heartbeat_timeout_ <= 0.0) ||
+            (get_node()->now() - last_heartbeat_time_).seconds() <= heartbeat_timeout_;
+        if (temp_ok && volt_ok && heartbeat_ok) {
             safety_state_ = SafetyState::SAFETY_NORMAL;
             // c_stt_ stays INACTIVE — user must call activate_srv
             RCLCPP_INFO(
