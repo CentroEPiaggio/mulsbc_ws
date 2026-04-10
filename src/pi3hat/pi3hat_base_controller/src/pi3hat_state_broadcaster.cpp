@@ -70,6 +70,14 @@ CallbackReturn Pi3Hat_State_Broadcaster::on_configure(const rclcpp_lifecycle::St
     stt_msg_.effort.resize(joints_.size());
     stt_msg_.temperature.resize(joints_.size());
     stt_msg_.current.resize(joints_.size());
+    // MODIFICA: Aggiunto resize per power e voltage nel messaggio
+    // Per rimuovere power e voltage, commenta o rimuovi queste due righe
+    stt_msg_.power.resize(
+        joints_.size()
+    ); // COMMENTO: Rimuovi questa riga se non vuoi leggere power dal motore
+    stt_msg_.voltage.resize(
+        joints_.size()
+    ); // COMMENTO: Rimuovi questa riga se non vuoi leggere voltage dal motore
     if (se_prov) {
         stt_msg_.sec_enc_pos.resize(joints_.size());
         stt_msg_.sec_enc_vel.resize(joints_.size());
@@ -96,9 +104,62 @@ CallbackReturn Pi3Hat_State_Broadcaster::on_cleanup(const rclcpp_lifecycle::Stat
 
 CallbackReturn Pi3Hat_State_Broadcaster::on_activate(const rclcpp_lifecycle::State&)
 {
-    // for(size_t i = 0; i < joints_.size(); i++)
-    //     RCLCPP_INFO(get_node()->get_logger(),"joints %d has name %s and is
-    //     %s",i,joints_[i].c_str(),se_flag_[i]?"active":"inactive");
+    // MODIFICA: Sostituito l'uso di indici hardcoded con cache degli indici basata sui nomi delle
+    // interfacce Questo rende il codice robusto all'ordine delle interfacce esportate dall'hardware
+    // interface Nel codice originale, si assumeva un ordine fisso: position, velocity, effort,
+    // q_current, power, voltage, temperature, package_loss Ma l'ordine poteva variare, causando
+    // letture errate (es. power letto come zero) Per tornare alla versione originale con indici
+    // hardcoded, commenta tutto questo blocco e usa: position_indices_[i] = 2 + i*8;
+    // velocity_indices_[i] = 3 + i*8; etc. Ma attenzione: l'ordine deve corrispondere a quello
+    // esportato dall'hardware (vedi actuator_manager.cpp ExportSttInt)
+    position_indices_.resize(joints_.size());
+    velocity_indices_.resize(joints_.size());
+    effort_indices_.resize(joints_.size());
+    temperature_indices_.resize(joints_.size());
+    current_indices_.resize(joints_.size());
+    voltage_indices_.resize(joints_.size());
+    power_indices_.resize(joints_.size());
+    package_loss_indices_.resize(joints_.size());
+
+    for (size_t i = 0; i < joints_.size(); i++) {
+        // Find index for each interface by name
+        for (size_t j = 0; j < state_interfaces_.size(); j++) {
+            auto name = state_interfaces_[j].get_name();
+            if (name == joints_[i] + "/" + hardware_interface::HW_IF_POSITION)
+                position_indices_[i] = j;
+            else if (name == joints_[i] + "/" + hardware_interface::HW_IF_VELOCITY)
+                velocity_indices_[i] = j;
+            else if (name == joints_[i] + "/" + hardware_interface::HW_IF_EFFORT)
+                effort_indices_[i] = j;
+            else if (name == joints_[i] + "/" + hardware_interface::HW_IF_TEMPERATURE)
+                temperature_indices_[i] = j;
+            else if (name == joints_[i] + "/" + hardware_interface::HW_IF_Q_CURRENT)
+                current_indices_[i] = j;
+            else if (name == joints_[i] + "/" + hardware_interface::HW_IF_VOLTAGE)
+                voltage_indices_[i] = j;
+            else if (name == joints_[i] + "/" + hardware_interface::HW_IF_POWER)
+                power_indices_[i] = j;
+            else if (name == joints_[i] + "/" + hardware_interface::HW_IF_PACKAGE_LOSS)
+                package_loss_indices_[i] = j;
+        }
+    }
+
+    // Cache second encoder indices
+    se_pos_vel_indices_.clear();
+    for (size_t i = 0; i < joints_.size(); i++) {
+        if (se_flag_[i]) {
+            size_t pos_idx = 0, vel_idx = 0;
+            for (size_t j = 0; j < state_interfaces_.size(); j++) {
+                auto name = state_interfaces_[j].get_name();
+                if (name == joints_[i] + "_second_encoder/" + hardware_interface::HW_IF_POSITION)
+                    pos_idx = j;
+                else if (name ==
+                         joints_[i] + "_second_encoder/" + hardware_interface::HW_IF_VELOCITY)
+                    vel_idx = j;
+            }
+            se_pos_vel_indices_.push_back({pos_idx, vel_idx});
+        }
+    }
 
     RCLCPP_INFO(get_node()->get_logger(), "activated succesfully");
     return CallbackReturn::SUCCESS;
@@ -117,14 +178,21 @@ Pi3Hat_State_Broadcaster::state_interface_configuration() const
     std::string int_name = "Pi3Hat";
     stt_int_cnf.names.push_back(int_name + "/" + hardware_interface::HW_IF_VALIDITY_LOSS);
     stt_int_cnf.names.push_back(int_name + "/" + hardware_interface::HW_IF_CYCLE_DUR);
-    for (size_t i = 0; i < joints_.size(); i++)
-        stt_int_cnf.names.push_back(joints_[i] + "/" + hardware_interface::HW_IF_PACKAGE_LOSS);
     for (size_t i = 0; i < joints_.size(); i++) {
         stt_int_cnf.names.push_back(joints_[i] + "/" + hardware_interface::HW_IF_POSITION);
         stt_int_cnf.names.push_back(joints_[i] + "/" + hardware_interface::HW_IF_VELOCITY);
         stt_int_cnf.names.push_back(joints_[i] + "/" + hardware_interface::HW_IF_EFFORT);
-        stt_int_cnf.names.push_back(joints_[i] + "/" + hardware_interface::HW_IF_TEMPERATURE);
         stt_int_cnf.names.push_back(joints_[i] + "/" + hardware_interface::HW_IF_Q_CURRENT);
+        // MODIFICA: Aggiunte interfacce per power e voltage
+        // Per rimuovere power e voltage, commenta o rimuovi queste due righe
+        stt_int_cnf.names.push_back(
+            joints_[i] + "/" + hardware_interface::HW_IF_POWER
+        ); // COMMENTO: Rimuovi questa riga se non vuoi leggere power
+        stt_int_cnf.names.push_back(
+            joints_[i] + "/" + hardware_interface::HW_IF_VOLTAGE
+        ); // COMMENTO: Rimuovi questa riga se non vuoi leggere voltage
+        stt_int_cnf.names.push_back(joints_[i] + "/" + hardware_interface::HW_IF_TEMPERATURE);
+        stt_int_cnf.names.push_back(joints_[i] + "/" + hardware_interface::HW_IF_PACKAGE_LOSS);
     }
     for (size_t i = 0; i < joints_.size(); i++) {
         if (se_flag_[i]) {
@@ -158,7 +226,7 @@ Pi3Hat_State_Broadcaster::update(const rclcpp::Time& time, const rclcpp::Duratio
         per_msg_.set__cycle_dur(state_interfaces_[1].get_value());
         // RCLCPP_INFO_STREAM(get_node()->get_logger(),state_interfaces_[2].get_value());
         for (size_t i = 0; i < sz; i++) {
-            per_msg_.pack_loss[i] = state_interfaces_[i + 2].get_value();
+            per_msg_.pack_loss[i] = state_interfaces_[package_loss_indices_[i]].get_value();
         }
 
         per_pub_->publish(per_msg_);
@@ -167,26 +235,29 @@ Pi3Hat_State_Broadcaster::update(const rclcpp::Time& time, const rclcpp::Duratio
 
     stt_msg_.header.set__stamp(time);
     for (size_t i = 0; i < sz; i++) {
-        // RCLCPP_INFO(get_node()->get_logger(),"executing std stt for jnt %s",joints_[i].c_str());
         stt_msg_.name[i] = joints_[i];
-        // RCLCPP_INFO(get_node()->get_logger(),"temp ind is %ld",1 + sz + 4*i );
-        stt_msg_.position[i] = state_interfaces_[2 + sz + 5 * i].get_value();
-        // RCLCPP_INFO(get_node()->get_logger(),"temp ind is %ld",1 + sz + 4*i + 1);
-        stt_msg_.velocity[i] = state_interfaces_[2 + sz + 5 * i + 1].get_value();
-        // RCLCPP_INFO(get_node()->get_logger(),"temp ind is %ld",1 + sz + 4*i + 2);
-        stt_msg_.effort[i] = state_interfaces_[2 + sz + 5 * i + 2].get_value();
-        // RCLCPP_INFO(get_node()->get_logger(),"temp ind is %ld",1 + sz + 4*i + 3);
-        stt_msg_.temperature[i] = state_interfaces_[2 + sz + 5 * i + 3].get_value();
-
-        stt_msg_.current[i] = state_interfaces_[2 + sz + 5 * i + 4].get_value();
+        // MODIFICA: Sostituiti indici hardcoded con quelli dalla cache basata sui nomi
+        // Nel codice originale: stt_msg_.position[i] = state_interfaces_[2 + i*8].get_value(); etc.
+        // Questo evita errori se l'ordine delle interfacce cambia
+        stt_msg_.position[i] = state_interfaces_[position_indices_[i]].get_value();
+        stt_msg_.velocity[i] = state_interfaces_[velocity_indices_[i]].get_value();
+        stt_msg_.effort[i] = state_interfaces_[effort_indices_[i]].get_value();
+        stt_msg_.current[i] = state_interfaces_[current_indices_[i]].get_value();
+        // MODIFICA: Aggiunte letture per power e voltage
+        // Per rimuovere, commenta queste due righe
+        stt_msg_.power[i] = state_interfaces_[power_indices_[i]].get_value();
+        stt_msg_.voltage[i] = state_interfaces_[voltage_indices_[i]].get_value();
+        stt_msg_.temperature[i] = state_interfaces_[temperature_indices_[i]].get_value();
     }
 
+    size_t se_index = 0;
     for (size_t i = 0; i < sz; i++) {
         if (se_flag_[i]) {
-            // RCLCPP_INFO(get_node()->get_logger(),"executing se stt for jnt
-            // %s",joints_[i].c_str());
-            stt_msg_.sec_enc_pos[i] = state_interfaces_[2 + sz * 6 + 2 * i].get_value();
-            stt_msg_.sec_enc_vel[i] = state_interfaces_[2 + sz * 6 + 2 * i + 1].get_value();
+            stt_msg_.sec_enc_pos[i] =
+                state_interfaces_[se_pos_vel_indices_[se_index].first].get_value();
+            stt_msg_.sec_enc_vel[i] =
+                state_interfaces_[se_pos_vel_indices_[se_index].second].get_value();
+            se_index++;
         }
     }
     stt_pub_->publish(stt_msg_);

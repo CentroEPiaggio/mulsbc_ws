@@ -8,7 +8,6 @@
 #include "hardware_interface/types/hardware_interface_type_values.hpp"
 #include "hardware_interface/types/lifecycle_state_names.hpp"
 // #include "pi3hat_hw_interface/motor_manager.hpp"
-#include <atomic>
 #include <chrono>
 #include <functional>
 #include <future>
@@ -16,7 +15,6 @@
 #include <memory>
 #include <stdio.h>
 #include <string>
-#include <thread>
 #include <utility>
 #include <vector>
 
@@ -85,7 +83,6 @@ constexpr char HW_IF_QUATERN_W[] = "orientation.w";
 
 namespace pi3hat_hw_interface {
 namespace moteus_pi3hat_interface {
-enum class SafetyState { NORMAL = 0, WARNING = 1, CRITICAL = 2, SHUTDOWN = 3 };
 class AsyncCallback {
 public:
     mjbots::moteus::CompletionCallback callback()
@@ -186,19 +183,6 @@ private:
     bool first_cycle_ = true, attitude_requested_ = false;
     AsyncCallback clb_as_;
     mjbots::pi3hat::Pi3HatMoteusTransport::Options p_opt_;
-
-    std::atomic<bool> motors_stopped_{false};
-    static constexpr int kStopTimeoutMs = 100;
-    void sendStopCycles(const char* caller);
-
-    SafetyState safety_state_ = SafetyState::NORMAL;
-    double safety_state_value_ = 0.0;
-    double temp_warning_threshold_ = 80.0;
-    double temp_critical_threshold_ = 100.0;
-    double battery_min_voltage_ = 18.0;
-    double shutdown_delay_ = 3.0;
-    std::chrono::steady_clock::time_point critical_start_time_;
-    int warn_throttle_counter_ = 0;
 };
 } // namespace moteus_pi3hat_interface
 } // namespace pi3hat_hw_interface

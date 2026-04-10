@@ -15,6 +15,7 @@ find_package(moteus_pi3hat REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(tf2 REQUIRED)
+find_package(rosbag2_cpp REQUIRED)
 find_package(std_msgs REQUIRED)
 
 add_library(${PROJECT_NAME} SHARED src/actuator_manager.cpp
@@ -34,10 +35,10 @@ ament_target_dependencies(
     rclcpp
     rclcpp_lifecycle
     moteus_pi3hat
+    Eigen3
     tf2_ros
     tf2
     std_msgs)
-target_link_libraries(${PROJECT_NAME} Eigen3::Eigen)
 
 ament_target_dependencies(${PROJECT_NAME}_node rclcpp moteus_pi3hat std_msgs)
 

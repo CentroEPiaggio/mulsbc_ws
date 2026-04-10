@@ -126,10 +126,10 @@ An example of the URDF file is:
             <param name="attitude_hz">400</param>
         </hardware>
 
-        <xacro:wheel_joint name="LF_WHEEL_JNT" id="3" bus="2"/>
-        <xacro:wheel_joint name="RF_WHEEL_JNT" id="5" bus="4"/>
-        <xacro:wheel_joint name="RH_WHEEL_JNT" id="7" bus="3"/>
-        <xacro:wheel_joint name="LH_WHEEL_JNT" id="9" bus="1"/>
+        <xacro:wheel_joint name="LF_WHEEL" id="3" bus="2"/>
+        <xacro:wheel_joint name="RF_WHEEL" id="5" bus="4"/>
+        <xacro:wheel_joint name="RH_WHEEL" id="7" bus="3"/>
+        <xacro:wheel_joint name="LH_WHEEL" id="9" bus="1"/>
     </ros2_control>
 </robot>
 ```
@@ -241,12 +241,12 @@ NORMAL ──(temp > warning)──► WARNING ──(temp > critical OR volt < 
   └──(temp < warning)────────────┘                                              └── write() sends MakeStop() to all actuators
 ```
 
-| State | Value | Behaviour |
-|-------|-------|-----------|
-| `NORMAL` | 0 | All checks pass, normal operation |
-| `WARNING` | 1 | Temperature elevated; throttled log at ~1 Hz; commands still sent |
-| `CRITICAL` | 2 | Threshold violated; `MakeStop()` sent every cycle; shutdown timer starts |
-| `SHUTDOWN` | 3 | `shutdown_delay` elapsed; `write()` keeps sending `MakeStop()`; `read()` returns `ERROR` |
+| State      | Value | Behaviour                                                                                |
+| ---------- | ----- | ---------------------------------------------------------------------------------------- |
+| `NORMAL`   | 0     | All checks pass, normal operation                                                        |
+| `WARNING`  | 1     | Temperature elevated; throttled log at ~1 Hz; commands still sent                        |
+| `CRITICAL` | 2     | Threshold violated; `MakeStop()` sent every cycle; shutdown timer starts                 |
+| `SHUTDOWN` | 3     | `shutdown_delay` elapsed; `write()` keeps sending `MakeStop()`; `read()` returns `ERROR` |
 
 The system can recover from `WARNING` back to `NORMAL` if temperature drops below the warning threshold. `CRITICAL` and `SHUTDOWN` require a system restart.
 
@@ -257,12 +257,12 @@ The system can recover from `WARNING` back to `NORMAL` if temperature drops belo
 
 ### Configuration Parameters (URDF `<hardware>` block)
 
-| Parameter | Default | Unit | Description |
-|-----------|---------|------|-------------|
-| `temp_warning_threshold` | 50 | °C | Temperature that triggers `WARNING` |
-| `temp_critical_threshold` | 57 | °C | Temperature that triggers `CRITICAL` |
-| `battery_min_voltage` | 24.0 | V | Voltage below which `CRITICAL` is triggered |
-| `shutdown_delay` | 3.0 | s | Time spent in `CRITICAL` before transitioning to `SHUTDOWN` |
+| Parameter                 | Default | Unit | Description                                                 |
+| ------------------------- | ------- | ---- | ----------------------------------------------------------- |
+| `temp_warning_threshold`  | 50      | °C   | Temperature that triggers `WARNING`                         |
+| `temp_critical_threshold` | 57      | °C   | Temperature that triggers `CRITICAL`                        |
+| `battery_min_voltage`     | 24.0    | V    | Voltage below which `CRITICAL` is triggered                 |
+| `shutdown_delay`          | 3.0     | s    | Time spent in `CRITICAL` before transitioning to `SHUTDOWN` |
 
 Example (Omnicar defaults):
 

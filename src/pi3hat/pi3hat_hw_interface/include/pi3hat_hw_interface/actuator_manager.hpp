@@ -57,11 +57,11 @@ using QueryFormat = mjbots::moteus::Query::Format;
 using CanFdFrame = mjbots::moteus::CanFdFrame;
 
 struct CommandStruct {
-    double position = std::nan("1");
+    double position = 0.0;
     double velocity = 0.0;
     double effort = 0.0;
-    double kp_scale = 0.0;
-    double kd_scale = 0.0;
+    double kp_scale = 1.0;
+    double kd_scale = 1.0;
 };
 struct StateStruct {
     double position = 0.0;
@@ -74,6 +74,7 @@ struct StateStruct {
     double motor_temperature = 0.0;
     double temperature = 0.0;
     double voltage = 0.0;
+    // double package_loss = 0.0;  // Non usato, gestito dal interface principale
     double second_encoder_position = 0.0;
     double second_encoder_velocity = 0.0;
     double position_error = 0.0;
@@ -221,31 +222,9 @@ public:
     void MakeCommand();
     void MakeQuery() { *cmd_frame_ = c_->MakeQuery(&query_format_); }
     void MakeStop();
-    /// Initialize cmd_ position from measured state, with gains at zero
-    void SnapCommandToState()
-    {
-        cmd_.position = stt_.position;
-        cmd_.velocity = 0.0;
-        cmd_.effort = 0.0;
-        cmd_.kp_scale = 0.0;
-        cmd_.kd_scale = 0.0;
-    }
     void SendExact() { c_->DiagnosticWrite("d exact 0.0\n"); }
-    double GetTemperature() const { return avg_temperature_; }
-    void UpdateTemperatureEMA()
-    {
-        if (first_temp_read_) {
-            avg_temperature_ = stt_.temperature;
-            first_temp_read_ = false;
-        } else {
-            avg_temperature_ += kTempAlpha * (stt_.temperature - avg_temperature_);
-        }
-    }
 
 private:
-    static constexpr double kTempAlpha = 2.0 / (500.0 + 1.0); // ~1s EMA at 500Hz
-    double avg_temperature_ = 0.0;
-    bool first_temp_read_ = true;
     mjbots::moteus::Resolution parse_res(int res)
     {
         if (res == 0)
@@ -366,21 +345,8 @@ public:
     void MakeQuery() { *cmd_frame_ = c_->MakePDQuery(&qf_); }
     std::string get_joint_name() { return dist_name_; };
     uint16_t GetDistributorId() { return id_; };
-    double GetVoltage() const { return avg_voltage_; }
-    void UpdateVoltageEMA()
-    {
-        if (first_voltage_read_) {
-            avg_voltage_ = stt_.voltage;
-            first_voltage_read_ = false;
-        } else {
-            avg_voltage_ += kVoltAlpha * (stt_.voltage - avg_voltage_);
-        }
-    }
 
 private:
-    static constexpr double kVoltAlpha = 2.0 / (500.0 + 1.0); // ~1s EMA at 500Hz
-    double avg_voltage_ = 0.0;
-    bool first_voltage_read_ = true;
     mjbots::moteus::Resolution parse_res(int res)
     {
         if (res == 0)

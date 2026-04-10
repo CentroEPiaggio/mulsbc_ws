@@ -1,4 +1,3 @@
-
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0 # Use the latest version
@@ -12,9 +11,9 @@ repos:
     rev: v3.1.0
     hooks:
       - id: prettier
-        types_or: [yaml, xml, json, markdown]
+        types_or: [yaml, xml, json]
         additional_dependencies:
-          - '@prettier/plugin-xml'
+          - "@prettier/plugin-xml"
 
   - repo: https://github.com/pre-commit/mirrors-clang-format
     rev: v21.1.5

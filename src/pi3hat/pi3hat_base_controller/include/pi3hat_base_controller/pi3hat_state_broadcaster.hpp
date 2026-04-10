@@ -54,6 +54,13 @@ private:
     StateMsgs stt_msg_;
     rclcpp::Publisher<LossMsgs>::SharedPtr per_pub_;
     rclcpp::Publisher<StateMsgs>::SharedPtr stt_pub_;
+    // Interface indices cache
+    std::vector<size_t> position_indices_, velocity_indices_, effort_indices_;
+    std::vector<size_t> temperature_indices_, current_indices_;
+    // MODIFICA: Aggiunti vettori per voltage, power e package_loss per cache degli indici delle
+    // interfacce Per tornare indietro rimuovi queste righe e usa indici hardcoded nel update()
+    std::vector<size_t> voltage_indices_, power_indices_, package_loss_indices_;
+    std::vector<std::pair<size_t, size_t>> se_pos_vel_indices_; // (position, velocity) per cada SE
 };
 }; // namespace pi3hat_state_broadcaster
 

@@ -163,10 +163,10 @@ omni_controller:
   ros__parameters:
     # Wheel joints — keys depend on IK type (mecanum: LF/LH/RF/RH, differential: LEFT/RIGHT)
     wheel_joints:
-      LF: LF_WHEEL_JNT
-      LH: LH_WHEEL_JNT
-      RF: RF_WHEEL_JNT
-      RH: RH_WHEEL_JNT
+      LF: LF_WHEEL
+      LH: LH_WHEEL
+      RF: RF_WHEEL
+      RH: RH_WHEEL
 
     # Optional: leg joints (omit or leave commented out if not used)
     # leg_joints:

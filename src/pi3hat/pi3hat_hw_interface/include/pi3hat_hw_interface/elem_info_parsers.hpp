@@ -20,10 +20,10 @@
 
 #pragma once
 #define MAX_EXTRAS 5
-#define MAX_VOLT 34
-#define MAX_CURR 80
-#define FLUX_BRAKE_MARGIN 27.5
-#define MAX_POWER 450
+#define MAX_VOLT 34.0
+#define MAX_CURR 80.0
+#define FLUX_BRAKE_MARGIN 5.0
+#define MAX_POWER 450.0
 namespace pi3hat_hw_interface {
 namespace power_dist_manager {
 struct DistributorQuery {
