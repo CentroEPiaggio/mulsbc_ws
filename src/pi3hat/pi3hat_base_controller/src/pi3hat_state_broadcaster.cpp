@@ -5,12 +5,12 @@
 #include <cstdint>
 
 namespace pi3hat_state_broadcaster {
-Pi3Hat_State_Broadcaster::Pi3Hat_State_Broadcaster()
-: logger_name_("Pi3Hat_State_Broadcaster"),
+Pi3HatStateBroadcaster::Pi3HatStateBroadcaster()
+: logger_name_("Pi3HatStateBroadcaster"),
   per_pub_(nullptr),
   stt_pub_(nullptr) {};
 
-CallbackReturn Pi3Hat_State_Broadcaster::on_init()
+CallbackReturn Pi3HatStateBroadcaster::on_init()
 {
 
     try {
@@ -28,7 +28,7 @@ CallbackReturn Pi3Hat_State_Broadcaster::on_init()
     return CallbackReturn::SUCCESS;
 }
 
-CallbackReturn Pi3Hat_State_Broadcaster::on_configure(const rclcpp_lifecycle::State&)
+CallbackReturn Pi3HatStateBroadcaster::on_configure(const rclcpp_lifecycle::State&)
 {
     bool per_ind, err_se_name = false, se_prov;
     std::vector<std::string> sec_enc;
@@ -97,12 +97,12 @@ CallbackReturn Pi3Hat_State_Broadcaster::on_configure(const rclcpp_lifecycle::St
     return CallbackReturn::SUCCESS;
 }
 
-CallbackReturn Pi3Hat_State_Broadcaster::on_cleanup(const rclcpp_lifecycle::State&)
+CallbackReturn Pi3HatStateBroadcaster::on_cleanup(const rclcpp_lifecycle::State&)
 {
     return CallbackReturn::SUCCESS;
 }
 
-CallbackReturn Pi3Hat_State_Broadcaster::on_activate(const rclcpp_lifecycle::State&)
+CallbackReturn Pi3HatStateBroadcaster::on_activate(const rclcpp_lifecycle::State&)
 {
     // MODIFICA: Sostituito l'uso di indici hardcoded con cache degli indici basata sui nomi delle
     // interfacce Questo rende il codice robusto all'ordine delle interfacce esportate dall'hardware
@@ -165,13 +165,13 @@ CallbackReturn Pi3Hat_State_Broadcaster::on_activate(const rclcpp_lifecycle::Sta
     return CallbackReturn::SUCCESS;
 }
 
-CallbackReturn Pi3Hat_State_Broadcaster::on_deactivate(const rclcpp_lifecycle::State&)
+CallbackReturn Pi3HatStateBroadcaster::on_deactivate(const rclcpp_lifecycle::State&)
 {
     return CallbackReturn::SUCCESS;
 }
 
 controller_interface::InterfaceConfiguration
-Pi3Hat_State_Broadcaster::state_interface_configuration() const
+Pi3HatStateBroadcaster::state_interface_configuration() const
 {
     controller_interface::InterfaceConfiguration stt_int_cnf;
     stt_int_cnf.type = controller_interface::interface_configuration_type::INDIVIDUAL;
@@ -209,7 +209,7 @@ Pi3Hat_State_Broadcaster::state_interface_configuration() const
 }
 
 controller_interface::InterfaceConfiguration
-Pi3Hat_State_Broadcaster::command_interface_configuration() const
+Pi3HatStateBroadcaster::command_interface_configuration() const
 {
     controller_interface::InterfaceConfiguration cmd_int_cnf;
     cmd_int_cnf.type = controller_interface::interface_configuration_type::NONE;
@@ -217,7 +217,7 @@ Pi3Hat_State_Broadcaster::command_interface_configuration() const
 }
 
 controller_interface::return_type
-Pi3Hat_State_Broadcaster::update(const rclcpp::Time& time, const rclcpp::Duration&)
+Pi3HatStateBroadcaster::update(const rclcpp::Time& time, const rclcpp::Duration&)
 {
     size_t sz = joints_.size();
     if (per_pub_ != nullptr) {
@@ -267,5 +267,5 @@ Pi3Hat_State_Broadcaster::update(const rclcpp::Time& time, const rclcpp::Duratio
 }; // namespace pi3hat_state_broadcaster
 
 PLUGINLIB_EXPORT_CLASS(
-    pi3hat_state_broadcaster::Pi3Hat_State_Broadcaster, controller_interface::ControllerInterface
+    pi3hat_state_broadcaster::Pi3HatStateBroadcaster, controller_interface::ControllerInterface
 );

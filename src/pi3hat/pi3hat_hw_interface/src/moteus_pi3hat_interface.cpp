@@ -249,16 +249,26 @@ CallbackReturn MoteusPi3Hat_Interface::on_activate(const rclcpp_lifecycle::State
 CallbackReturn MoteusPi3Hat_Interface::on_deactivate(const rclcpp_lifecycle::State&)
 {
     RCLCPP_INFO(rclcpp::get_logger(LOGGER_NAME), "Start Actuator Deactivation Procedure");
-    // for(auto i : actuator_index_)
-    // {
-    //     actuators_[i]->MakeStop();
-    // }
 
-    // pi3hat_transport_->BlockingCycle(
-    //     command_frames_.data(),
-    //     command_frames_.size(),
-    //     &replies_
-    // );
+    // Drain any pending async callback before sending stop commands
+    while (clb_as_.try_consume(&t_s_read_) == -1)
+        ;
+
+    for (auto i : actuator_index_) {
+        actuators_[i]->MakeStop();
+    }
+
+    {
+        mjbots::moteus::BlockingCallback cbk;
+
+        pi3hat_transport_->Cycle(
+            command_frames_.data(), command_frames_.size(), &replies_, &filtered_IMU_, nullptr,
+            nullptr, cbk.callback()
+        );
+
+        cbk.Wait();
+    }
+
     return CallbackReturn::SUCCESS;
 };
 

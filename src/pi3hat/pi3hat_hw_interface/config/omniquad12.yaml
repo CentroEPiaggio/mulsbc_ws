@@ -3,19 +3,19 @@ controller_manager:
     update_rate: 500
 
     state_broadcaster:
-      type: pi3hat_state_broadcaster/Pi3Hat_State_Broadcaster
+      type: pi3hat_state_broadcaster/Pi3HatStateBroadcaster
 
     distributor_state_broadcaster:
-      type: distributor_state_broadcaster/Distributor_State_Broadcaster
+      type: distributor_state_broadcaster/DistributorStateBroadcaster
 
     debug_broadcaster:
-      type: debug_broadcaster/Debug_Broadcaster
+      type: debug_broadcaster/DebugBroadcaster
 
     imu_sensor:
       type: imu_sensor_broadcaster/IMUSensorBroadcaster
 
     joint_controller:
-      type: pi3hat_joint_group_controller/Pi3Hat_Joint_Group_Controller
+      type: pi3hat_joint_group_controller/Pi3HatJointGroupController
 
     omni_controller:
       type: omni_controller/OmniController
@@ -113,7 +113,7 @@ omni_controller:
       RF: RF_WHEEL
       RH: RH_WHEEL
 
-    leg_joints:
+    joints:
       - LF_HFE
       - LF_KFE
       - LH_HFE
@@ -137,30 +137,46 @@ omni_controller:
     #     - RH_HFE
     #     - RH_KFE
 
-    # Homing
-    homing_phases: [5.0]
-    homing_config:
-      LF_HFE: { qi: 0.0, qf: -0.56 }
-      LF_KFE: { qi: 0.0, qf: 1.8 }
-      LH_HFE: { qi: 0.0, qf: 0.56 }
-      LH_KFE: { qi: 0.0, qf: -1.8 }
-      RF_HFE: { qi: 0.0, qf: 0.56 }
-      RF_KFE: { qi: 0.0, qf: -1.8 }
-      RH_HFE: { qi: 0.0, qf: -0.56 }
-      RH_KFE: { qi: 0.0, qf: 1.8 }
+    # Transitions (rest / stand) — durations for the min-jerk interpolation between rest and stand poses
+    rest_duration: 5.0 # [s] time to interpolate from stand to rest pose (0 disables transitions)
+    stand_duration: 5.0 # [s] time to interpolate from rest to stand pose (0 disables transitions)
+    joint_targets:
+      LF_HFE: { q_rest: 0.0, q_stand: -0.56 }
+      LF_KFE: { q_rest: 0.0, q_stand: 1.8 }
+      LH_HFE: { q_rest: 0.0, q_stand: 0.56 }
+      LH_KFE: { q_rest: 0.0, q_stand: -1.8 }
+      RF_HFE: { q_rest: 0.0, q_stand: 0.56 }
+      RF_KFE: { q_rest: 0.0, q_stand: -1.8 }
+      RH_HFE: { q_rest: 0.0, q_stand: -0.56 }
+      RH_KFE: { q_rest: 0.0, q_stand: 1.8 }
 
     # Wheel IK
-    feet_type: mecanum
-    wheel_rad: 0.05
-    driveshaft_x: 0.235
-    driveshaft_y: 0.188
-    mecanum_angle: 135.0
+    wheel_mode: ik # Wheel control mode: "ik" (twist → WheelIK) or "direct" (per-wheel velocity)
+    feet_type: mecanum # Wheel IK type: "mecanum", "differential", or "none"
+    wheel_rad: 0.05 # Wheel radius [m]
+    driveshaft_x: 0.235 # Longitudinal distance from base center to wheel [m]
+    driveshaft_y: 0.188 # Lateral distance from base center to wheel [m]
+    mecanum_angle: 135.0 # Mecanum roller angle [deg] (only used with feet_type: mecanum)
 
     # Communication
-    input_frequency: 100
-    BestEffort_QOS: true
+    input_frequency: 100 # Expected twist command rate [Hz] (sets deadline QoS)
+    BestEffort_QOS: true # true = BestEffort QoS, false = Reliable QoS for twist subscriber
 
     # Features
-    sim: false
-    pub_odom: false
-    pub_performance: true
+    sim: false # true = skip hardware, accept commands without real motors
+    pub_odom: false # Publish wheel odometry on ~/odom
+    pub_performance: true # Publish CAN packet loss & cycle duration on ~/performance
+
+    safety:
+      enabled: true
+      temp_warning_threshold: 50.0 # [C] motor temp above this triggers throttling (kp/kd halved)
+      temp_critical_threshold: 60.0 # [C] motor temp above this triggers the critical_strategy
+      battery_min_voltage: 24.0 # [V] distributor voltage below this triggers the critical_strategy
+      temp_recovery_hysteresis: 1.0 # [C] temp must drop below (warning - hysteresis) to recover
+      volt_recovery_hysteresis: 0.5 # [V] voltage must rise above (min + hysteresis) to recover
+      ema_window_samples: 5000 # EMA filter length for temp/voltage; averages over ema_window_samples / update_rate seconds
+      # Action on critical fault: "damping" (ramp to zero), "stop" (immediate zero), "default_config" (apply default kp/kd)
+      critical_strategy: "default_config"
+      damping_duration: 10.0 # [s] ramp-down time when critical_strategy is "damping"
+      legs_cmd_timeout: 0.5 # [s] if no leg command received for this long, zero leg torques
+      heartbeat_timeout: 1.0 # [s] NUC heartbeat timeout; 0 disables (only checked after first heartbeat)

@@ -21,11 +21,11 @@ namespace distributor_state_broadcaster {
 using LossMsgs = pi3hat_moteus_int_msgs::msg::PacketPass;
 using StateMsgs = pi3hat_moteus_int_msgs::msg::DistributorsState;
 using CallbackReturn = rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn;
-class Distributor_State_Broadcaster: public controller_interface::ControllerInterface {
+class DistributorStateBroadcaster: public controller_interface::ControllerInterface {
 public:
-    Distributor_State_Broadcaster();
+    DistributorStateBroadcaster();
 
-    ~Distributor_State_Broadcaster() {};
+    ~DistributorStateBroadcaster() {};
 
     CallbackReturn on_init() override;
 

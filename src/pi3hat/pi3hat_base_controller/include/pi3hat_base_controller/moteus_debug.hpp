@@ -21,11 +21,11 @@
 namespace debug_broadcaster {
 using StateMsgs = pi3hat_moteus_int_msgs::msg::JointsStates;
 using CallbackReturn = rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn;
-class Debug_Broadcaster: public controller_interface::ControllerInterface {
+class DebugBroadcaster: public controller_interface::ControllerInterface {
 public:
-    Debug_Broadcaster();
+    DebugBroadcaster();
 
-    ~Debug_Broadcaster() {};
+    ~DebugBroadcaster() {};
 
     CallbackReturn on_init() override;
 

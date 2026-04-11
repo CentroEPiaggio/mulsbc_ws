@@ -19,6 +19,8 @@
 #include "pi3hat_moteus_int_msgs/msg/joints_command.hpp"
 #include "pi3hat_moteus_int_msgs/msg/joints_states.hpp"
 #include "pi3hat_moteus_int_msgs/msg/packet_pass.hpp"
+#include "std_msgs/msg/empty.hpp"
+#include "std_msgs/msg/u_int8.hpp"
 #include "std_srvs/srv/set_bool.hpp"
 
 #include "omni_controller/wheel_ik.hpp"
@@ -42,16 +44,26 @@ constexpr char CYCLE_DUR[] = "cycle_duration";
 
 enum ControllerState {
     INACTIVE = 0,
-    HOMING,
+    TRANSITION,
     ACTIVE,
 };
 
-struct JointHomingConfig {
-    double qi = 0.0;
-    double qm = 0.0;
-    double qf = 0.0;
-    bool has_qm = false;
+enum SafetyState {
+    SAFETY_NORMAL = 0,
+    SAFETY_WARNING,
+    SAFETY_CRITICAL,
+    SAFETY_DAMPING,
+    SAFETY_STOPPED,
 };
+
+struct JointTargets {
+    double q_rest = 0.0;
+    double q_stand = 0.0;
+};
+
+enum TransitionTarget { TARGET_REST = 0, TARGET_STAND };
+
+enum WheelMode { WHEEL_IK = 0, WHEEL_DIRECT };
 
 using CallbackReturn = rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn;
 using TransactionService = std_srvs::srv::SetBool;
@@ -82,8 +94,8 @@ private:
     // ─── Configuration ──────────────────────────────────────────────────
     std::vector<std::string> wheel_joints_;
     std::vector<std::vector<std::string>> wheel_groups_; // IK index → joint names
-    std::vector<std::string> leg_joints_;
-    std::vector<std::string> all_motor_joints_; // wheel_joints_ + leg_joints_
+    std::vector<std::string> joints_;
+    std::vector<std::string> all_motor_joints_; // wheel_joints_ + joints_
     std::vector<std::string> distributor_names_;
     std::vector<std::string> second_encoder_joints_;
     std::vector<bool> se_flag_; // per motor joint: has second encoder?
@@ -91,30 +103,73 @@ private:
     bool has_wheels_ = false;
     bool has_legs_ = false;
     bool has_distributors_ = false;
-    bool has_homing_ = false;
-    bool homing_completed_ = false;
+    bool has_transitions_ = false;
+    bool transition_completed_ = false;
     bool sim_flag_ = false;
     bool pub_odom_ = false;
     bool pub_performance_ = true;
 
-    // ─── Wheel IK ───────────────────────────────────────────────────────
+    // ─── Safety parameters ──────────────────────────────────────────────
+    bool safety_enabled_ = true;
+    double temp_warning_threshold_ = 50.0;
+    double temp_critical_threshold_ = 57.0;
+    double battery_min_voltage_ = 24.0;
+    double temp_recovery_hysteresis_ = 5.0;
+    double volt_recovery_hysteresis_ = 1.0;
+    int ema_window_samples_ = 500;
+    double ema_alpha_ = 0.0;
+    std::string critical_strategy_ = "damping";
+    double damping_duration_ = 3.0;
+    double legs_cmd_timeout_ = 0.5;
+    double heartbeat_timeout_ = 1.0;
+
+    // ─── Wheel IK / direct mode ────────────────────────────────────────
     std::unique_ptr<WheelIK> wheel_ik_;
+    WheelMode wheel_mode_ = WHEEL_IK;
 
     // ─── State machine ──────────────────────────────────────────────────
     ControllerState c_stt_ = ControllerState::INACTIVE;
     std::atomic<int> dl_miss_count_{0};
 
-    // ─── Homing ─────────────────────────────────────────────────────────
-    std::vector<double> homing_phase_durations_;
-    std::map<std::string, JointHomingConfig> homing_config_;
-    std::map<std::string, double> homing_q_start_; // actual joint pos at homing start
-    int homing_phase_ = 0;
-    rclcpp::Time homing_start_time_;
-    bool homing_time_initialized_ = false;
+    // ─── Transitions (rest / stand) ────────────────────────────────────
+    double rest_duration_ = 5.0;
+    double stand_duration_ = 5.0;
+    std::map<std::string, JointTargets> joint_targets_;
+    std::map<std::string, double> transition_q_start_;
+    TransitionTarget transition_target_ = TARGET_REST;
+    rclcpp::Time transition_start_time_;
+    bool transition_time_initialized_ = false;
+
+    // ─── Safety state ─────────────────────────────────────────────────
+    SafetyState safety_state_ = SafetyState::SAFETY_NORMAL;
+    std::vector<double> temp_ema_; // per motor joint
+    std::vector<double> volt_ema_; // per distributor
+    bool ema_initialized_ = false;
+    int ema_warmup_counter_ = 0; // counts up to ema_window_samples_ before evaluating
+    int warn_throttle_counter_ = 0;
+
+    // Damping state
+    bool damping_time_initialized_ = false;
+    rclcpp::Time damping_start_time_;
+    std::map<std::string, double> damping_q_start_;
+
+    // Leg command timeout
+    rclcpp::Time last_legs_cmd_time_;
+    bool legs_cmd_received_ = false;
+    int legs_timeout_throttle_ = 0;
+
+    // NUC heartbeat monitoring
+    rclcpp::Time last_heartbeat_time_;
+    bool heartbeat_received_ = false;
 
     // ─── Buffered commands (protected by mutex) ─────────────────────────
     std::mutex var_mutex_;
     double base_vel_[3] = {0.0, 0.0, 0.0};
+
+    // Direct wheel commands: per-wheel buffered values
+    std::map<std::string, double> direct_wheel_vel_cmd_;
+    std::map<std::string, double> direct_wheel_kp_cmd_;
+    std::map<std::string, double> direct_wheel_kd_cmd_;
 
     // Leg commands: per-joint buffered values
     std::map<std::string, double> leg_pos_cmd_;
@@ -131,12 +186,15 @@ private:
 
     // ─── Publishers ─────────────────────────────────────────────────────
     rclcpp::Publisher<JointsStates>::SharedPtr stt_pub_;
+    rclcpp::Publisher<JointsCommand>::SharedPtr cmd_pub_;
     rclcpp::Publisher<PacketPass>::SharedPtr per_pub_;
     rclcpp::Publisher<DistributorsState>::SharedPtr dist_pub_;
     rclcpp::Publisher<geometry_msgs::msg::TwistStamped>::SharedPtr odom_pub_;
+    rclcpp::Publisher<std_msgs::msg::UInt8>::SharedPtr safety_pub_;
 
     // Pre-allocated messages
     JointsStates stt_msg_;
+    JointsCommand cmd_msg_;
     PacketPass per_msg_;
     DistributorsState dist_msg_;
     geometry_msgs::msg::TwistStamped odom_msg_;
@@ -144,11 +202,15 @@ private:
     // ─── Subscribers ────────────────────────────────────────────────────
     rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr twist_sub_;
     rclcpp::Subscription<JointsCommand>::SharedPtr legs_sub_;
+    rclcpp::Subscription<JointsCommand>::SharedPtr direct_wheels_sub_;
+    rclcpp::Subscription<std_msgs::msg::Empty>::SharedPtr heartbeat_sub_;
 
     // ─── Services ───────────────────────────────────────────────────────
     rclcpp::Service<TransactionService>::SharedPtr activate_srv_;
     rclcpp::Service<TransactionService>::SharedPtr emergency_srv_;
-    rclcpp::Service<TransactionService>::SharedPtr homing_srv_;
+    rclcpp::Service<TransactionService>::SharedPtr rest_srv_;
+    rclcpp::Service<TransactionService>::SharedPtr stand_srv_;
+    rclcpp::Service<TransactionService>::SharedPtr wheel_mode_srv_;
 
     // ─── Callbacks ──────────────────────────────────────────────────────
     void twist_callback(const geometry_msgs::msg::Twist::SharedPtr msg);
@@ -161,25 +223,42 @@ private:
         const TransactionService::Request::SharedPtr req,
         const TransactionService::Response::SharedPtr res
     );
-    void homing_service_cb(
+    void rest_service_cb(
+        const TransactionService::Request::SharedPtr req,
+        const TransactionService::Response::SharedPtr res
+    );
+    void stand_service_cb(
+        const TransactionService::Request::SharedPtr req,
+        const TransactionService::Response::SharedPtr res
+    );
+    void direct_wheels_callback(const JointsCommand::SharedPtr msg);
+    void heartbeat_callback(const std_msgs::msg::Empty::SharedPtr msg);
+    void wheel_mode_service_cb(
         const TransactionService::Request::SharedPtr req,
         const TransactionService::Response::SharedPtr res
     );
 
     // ─── Update helpers ─────────────────────────────────────────────────
     void publish_joint_states(const rclcpp::Time& time);
+    void publish_joints_command(const rclcpp::Time& time);
     void publish_performance(const rclcpp::Time& time);
     void publish_distributor_states(const rclcpp::Time& time);
     void publish_odometry(const rclcpp::Time& time);
     void write_wheel_commands();
+    void write_direct_wheel_commands();
     void write_leg_commands();
     void zero_all_commands();
-    void update_homing(const rclcpp::Time& time);
+    void update_transition(const rclcpp::Time& time);
+    void update_safety_monitoring();
+    void evaluate_safety_transitions();
+    void update_damping(const rclcpp::Time& time);
     static double cosine_interp(double a, double b, double t);
 
     // ─── Helpers ────────────────────────────────────────────────────────
     /// Get state interface value by "joint/interface" key. Returns 0.0 if not found.
     double get_state(const std::string& key) const;
+    /// Get command interface value by "joint/interface" key. Returns 0.0 if not found.
+    double get_command(const std::string& key) const;
     /// Set command interface value by "joint/interface" key.
     void set_command(const std::string& key, double value);
 };

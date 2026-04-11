@@ -22,11 +22,11 @@ namespace pi3hat_state_broadcaster {
 using LossMsgs = pi3hat_moteus_int_msgs::msg::PacketPass;
 using StateMsgs = pi3hat_moteus_int_msgs::msg::JointsStates;
 using CallbackReturn = rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn;
-class Pi3Hat_State_Broadcaster: public controller_interface::ControllerInterface {
+class Pi3HatStateBroadcaster: public controller_interface::ControllerInterface {
 public:
-    Pi3Hat_State_Broadcaster();
+    Pi3HatStateBroadcaster();
 
-    ~Pi3Hat_State_Broadcaster() {};
+    ~Pi3HatStateBroadcaster() {};
 
     CallbackReturn on_init() override;
 

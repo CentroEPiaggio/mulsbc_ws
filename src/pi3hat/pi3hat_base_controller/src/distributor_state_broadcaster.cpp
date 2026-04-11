@@ -4,12 +4,12 @@
 #include <cmath>
 #include <cstdint>
 namespace distributor_state_broadcaster {
-Distributor_State_Broadcaster::Distributor_State_Broadcaster()
+DistributorStateBroadcaster::DistributorStateBroadcaster()
 : logger_name_("DistributorStateBroadcaster"),
   per_pub_(nullptr),
   stt_pub_(nullptr) {};
 
-CallbackReturn Distributor_State_Broadcaster::on_init()
+CallbackReturn DistributorStateBroadcaster::on_init()
 {
 
     try {
@@ -25,7 +25,7 @@ CallbackReturn Distributor_State_Broadcaster::on_init()
     return CallbackReturn::SUCCESS;
 }
 
-CallbackReturn Distributor_State_Broadcaster::on_configure(const rclcpp_lifecycle::State&)
+CallbackReturn DistributorStateBroadcaster::on_configure(const rclcpp_lifecycle::State&)
 {
     bool per_ind, err_se_name = false, se_prov;
     std::vector<std::string> sec_enc;
@@ -46,12 +46,12 @@ CallbackReturn Distributor_State_Broadcaster::on_configure(const rclcpp_lifecycl
     return CallbackReturn::SUCCESS;
 }
 
-CallbackReturn Distributor_State_Broadcaster::on_cleanup(const rclcpp_lifecycle::State&)
+CallbackReturn DistributorStateBroadcaster::on_cleanup(const rclcpp_lifecycle::State&)
 {
     return CallbackReturn::SUCCESS;
 }
 
-CallbackReturn Distributor_State_Broadcaster::on_activate(const rclcpp_lifecycle::State&)
+CallbackReturn DistributorStateBroadcaster::on_activate(const rclcpp_lifecycle::State&)
 {
     // for(size_t i = 0; i < joints_.size(); i++)
     //     RCLCPP_INFO(get_node()->get_logger(),"joints %d has name %s and is
@@ -61,13 +61,13 @@ CallbackReturn Distributor_State_Broadcaster::on_activate(const rclcpp_lifecycle
     return CallbackReturn::SUCCESS;
 }
 
-CallbackReturn Distributor_State_Broadcaster::on_deactivate(const rclcpp_lifecycle::State&)
+CallbackReturn DistributorStateBroadcaster::on_deactivate(const rclcpp_lifecycle::State&)
 {
     return CallbackReturn::SUCCESS;
 }
 
 controller_interface::InterfaceConfiguration
-Distributor_State_Broadcaster::state_interface_configuration() const
+DistributorStateBroadcaster::state_interface_configuration() const
 {
     controller_interface::InterfaceConfiguration stt_int_cnf;
     stt_int_cnf.type = controller_interface::interface_configuration_type::INDIVIDUAL;
@@ -84,7 +84,7 @@ Distributor_State_Broadcaster::state_interface_configuration() const
 }
 
 controller_interface::InterfaceConfiguration
-Distributor_State_Broadcaster::command_interface_configuration() const
+DistributorStateBroadcaster::command_interface_configuration() const
 {
     controller_interface::InterfaceConfiguration cmd_int_cnf;
     cmd_int_cnf.type = controller_interface::interface_configuration_type::NONE;
@@ -92,7 +92,7 @@ Distributor_State_Broadcaster::command_interface_configuration() const
 }
 
 controller_interface::return_type
-Distributor_State_Broadcaster::update(const rclcpp::Time& time, const rclcpp::Duration&)
+DistributorStateBroadcaster::update(const rclcpp::Time& time, const rclcpp::Duration&)
 {
     size_t sz = joints_.size();
 
@@ -116,6 +116,6 @@ Distributor_State_Broadcaster::update(const rclcpp::Time& time, const rclcpp::Du
 };
 } // namespace distributor_state_broadcaster
 PLUGINLIB_EXPORT_CLASS(
-    distributor_state_broadcaster::Distributor_State_Broadcaster,
+    distributor_state_broadcaster::DistributorStateBroadcaster,
     controller_interface::ControllerInterface
 );
