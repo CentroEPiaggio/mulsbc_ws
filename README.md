@@ -50,6 +50,8 @@ ros2 launch pi3hat_hw_interface moteus_pi3hat_interface.launch.py \
   urdf_file:=omnicar.xacro \
   conf_file:=omnicar.yaml
 ```
+Additional launch arguments:
+- `record_bag` (bool, default: `false`): Whether to record a rosbag of all topics except camera and lidar.
 
 Defaults are `omnicar.xacro` / `omnicar.yaml`. URDF files live in `pi3hat_hw_interface/urdf/`, config YAMLs in `pi3hat_hw_interface/config/`.
 

@@ -1,5 +1,6 @@
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument
+from launch.actions import DeclareLaunchArgument, ExecuteProcess
+from launch.conditions import IfCondition
 from launch.substitutions import Command, LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
@@ -7,12 +8,12 @@ from launch_ros.substitutions import FindPackageShare
 
 
 def generate_launch_description():
-    ld = LaunchDescription()
-
     urdf_name_arg = DeclareLaunchArgument('urdf_file', default_value='omnicar.xacro')
-    ld.add_action(urdf_name_arg)
     conf_name_arg = DeclareLaunchArgument('conf_file', default_value='omnicar.yaml')
-    ld.add_action(conf_name_arg)
+    record_bag_arg = DeclareLaunchArgument(
+        'record_bag',
+        default_value='false',
+    )
 
     robot_model_path = PathJoinSubstitution(
         [FindPackageShare('pi3hat_hw_interface'), 'urdf', LaunchConfiguration('urdf_file')]
@@ -41,7 +42,42 @@ def generate_launch_description():
         arguments=['omni_controller'],
     )
 
-    ld.add_action(control_node)
-    ld.add_action(state_broadcaster_spawner)
-    ld.add_action(omni_controller_spawner)
-    return ld
+    rosbag_record = ExecuteProcess(
+        condition=IfCondition(LaunchConfiguration('record_bag')),
+        cmd=[
+            'ros2',
+            'bag',
+            'record',
+            '/distributor_state_broadcaster/distributors_state',
+            '/distributor_state_broadcaster/transition_event',
+            '/events/write_split',
+            '/ik_controller/base_pose',
+            '/joy',
+            '/joy/set_feedback',
+            '/nuc_heartbeat',
+            '/omni_controller/direct_wheels_cmd',
+            '/omni_controller/joints_command',
+            '/omni_controller/joints_state',
+            '/omni_controller/legs_cmd',
+            '/omni_controller/performance',
+            '/omni_controller/safety_state',
+            '/omni_controller/transition_event',
+            '/omni_controller/twist_cmd',
+            '/state_broadcaster/joints_state',
+            '/state_broadcaster/performance_indexes',
+            '/state_broadcaster/transition_event',
+        ],
+        output='screen',
+    )
+
+    return LaunchDescription(
+        [
+            urdf_name_arg,
+            conf_name_arg,
+            record_bag_arg,
+            control_node,
+            state_broadcaster_spawner,
+            omni_controller_spawner,
+            rosbag_record,
+        ]
+    )
