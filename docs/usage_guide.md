@@ -302,7 +302,7 @@ omni_controller:
       ema_window_samples: 5000
       critical_strategy: "damping"    # "damping", "stop", or "default_config"
       damping_duration: 3.0           # [s]  — only for damping/default_config
-      legs_cmd_timeout: 0.5           # [s]  — legs stop if no command received
+      joints_reference_timeout: 0.5   # [s]  — legs hold position if no joint reference received
       heartbeat_timeout: 1.0          # [s]  — CRITICAL if NUC heartbeat lost
 ```
 
@@ -407,12 +407,12 @@ ros2 topic pub /omni_controller/direct_wheels_cmd pi3hat_moteus_int_msgs/msg/Joi
 
 ### Commanding Leg/Arm Joints
 
-Publish position commands for non-wheel joints:
+Publish reference setpoints for non-wheel joints:
 
 ```bash
-# Topic: /omni_controller/legs_cmd
+# Topic: /omni_controller/joints_reference
 # Type:  pi3hat_moteus_int_msgs/msg/JointsCommand
-ros2 topic pub /omni_controller/legs_cmd pi3hat_moteus_int_msgs/msg/JointsCommand \
+ros2 topic pub /omni_controller/joints_reference pi3hat_moteus_int_msgs/msg/JointsCommand \
   "{name: [LF_HFE, LF_KFE], position: [0.5, 1.2], kp_scale: [1.0, 1.0], kd_scale: [1.0, 1.0]}"
 ```
 
@@ -424,7 +424,7 @@ Fields in `JointsCommand`:
 - `kp_scale[]` — Scale the Moteus KP gain [0.0–1.0]
 - `kd_scale[]` — Scale the Moteus KD gain [0.0–1.0]
 
-If no leg command is received within `legs_cmd_timeout`, the legs hold their last commanded position.
+If no joint reference is received within `joints_reference_timeout`, the legs hold their last commanded position.
 
 ### NUC Heartbeat
 
@@ -455,9 +455,9 @@ Fields: `name[]`, `position[]`, `velocity[]`, `effort[]`, `current[]`, `temperat
 ### Command Echo
 
 ```bash
-# Topic: /omni_controller/joints_command
+# Topic: /omni_controller/debug/joints_command
 # Type:  pi3hat_moteus_int_msgs/msg/JointsCommand
-ros2 topic echo /omni_controller/joints_command
+ros2 topic echo /omni_controller/debug/joints_command
 ```
 
 Shows the commands actually being sent to the hardware each cycle.
@@ -513,7 +513,7 @@ Fields: `valid` (% valid packets), `cycle_dur` [s], `write2read_dur` [s], `name[
 | Topic | Type | Description |
 |---|---|---|
 | `~/twist_cmd` | `geometry_msgs/msg/Twist` | Base velocity command (vx, vy, omega) |
-| `~/legs_cmd` | `pi3hat_moteus_int_msgs/msg/JointsCommand` | Position commands for non-wheel joints |
+| `~/joints_reference` | `pi3hat_moteus_int_msgs/msg/JointsCommand` | Reference setpoints for non-wheel joints (legs, arms, etc.) |
 | `~/direct_wheels_cmd` | `pi3hat_moteus_int_msgs/msg/JointsCommand` | Per-wheel velocity (direct mode only) |
 | `/nuc_heartbeat` | `std_msgs/msg/Empty` | External computer heartbeat |
 
@@ -522,7 +522,7 @@ Fields: `valid` (% valid packets), `cycle_dur` [s], `write2read_dur` [s], `name[
 | Topic | Type | Description |
 |---|---|---|
 | `~/joints_state` | `pi3hat_moteus_int_msgs/msg/JointsStates` | Full joint telemetry |
-| `~/joints_command` | `pi3hat_moteus_int_msgs/msg/JointsCommand` | Command echo |
+| `~/debug/joints_command` | `pi3hat_moteus_int_msgs/msg/JointsCommand` | Command echo — what was actually written to hardware each cycle |
 | `~/safety_state` | `std_msgs/msg/UInt8` | Safety state (0–4) |
 | `~/distributors_state` | `pi3hat_moteus_int_msgs/msg/DistributorsState` | Power distributor data |
 | `~/odom` | `geometry_msgs/msg/TwistStamped` | Wheel odometry (if enabled) |

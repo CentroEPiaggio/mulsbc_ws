@@ -120,7 +120,7 @@ private:
     double ema_alpha_ = 0.0;
     std::string critical_strategy_ = "damping";
     double damping_duration_ = 3.0;
-    double legs_cmd_timeout_ = 0.5;
+    double joints_reference_timeout_ = 0.5;
     double heartbeat_timeout_ = 1.0;
 
     // ─── Wheel IK / direct mode ────────────────────────────────────────
@@ -153,10 +153,10 @@ private:
     rclcpp::Time damping_start_time_;
     std::map<std::string, double> damping_q_start_;
 
-    // Leg command timeout
-    rclcpp::Time last_legs_cmd_time_;
-    bool legs_cmd_received_ = false;
-    int legs_timeout_throttle_ = 0;
+    // Joints reference timeout
+    rclcpp::Time last_joints_reference_time_;
+    bool joints_reference_received_ = false;
+    int joints_reference_timeout_throttle_ = 0;
 
     // NUC heartbeat monitoring
     rclcpp::Time last_heartbeat_time_;
@@ -201,7 +201,7 @@ private:
 
     // ─── Subscribers ────────────────────────────────────────────────────
     rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr twist_sub_;
-    rclcpp::Subscription<JointsCommand>::SharedPtr legs_sub_;
+    rclcpp::Subscription<JointsCommand>::SharedPtr joints_reference_sub_;
     rclcpp::Subscription<JointsCommand>::SharedPtr direct_wheels_sub_;
     rclcpp::Subscription<std_msgs::msg::Empty>::SharedPtr heartbeat_sub_;
 
@@ -214,7 +214,7 @@ private:
 
     // ─── Callbacks ──────────────────────────────────────────────────────
     void twist_callback(const geometry_msgs::msg::Twist::SharedPtr msg);
-    void legs_callback(const JointsCommand::SharedPtr msg);
+    void joints_reference_callback(const JointsCommand::SharedPtr msg);
     void activate_service_cb(
         const TransactionService::Request::SharedPtr req,
         const TransactionService::Response::SharedPtr res

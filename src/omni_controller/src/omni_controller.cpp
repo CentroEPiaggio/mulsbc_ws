@@ -67,7 +67,7 @@ CallbackReturn OmniController::on_init()
         auto_declare<int>("safety.ema_window_samples", 5000);
         auto_declare<std::string>("safety.critical_strategy", "damping");
         auto_declare<double>("safety.damping_duration", 3.0);
-        auto_declare<double>("safety.legs_cmd_timeout", 0.5);
+        auto_declare<double>("safety.joints_reference_timeout", 0.5);
         auto_declare<double>("safety.heartbeat_timeout", 1.0);
     } catch (const std::exception& e) {
         RCLCPP_ERROR(
@@ -240,7 +240,8 @@ CallbackReturn OmniController::on_configure(const rclcpp_lifecycle::State&)
     ema_window_samples_ = get_node()->get_parameter("safety.ema_window_samples").as_int();
     critical_strategy_ = get_node()->get_parameter("safety.critical_strategy").as_string();
     damping_duration_ = get_node()->get_parameter("safety.damping_duration").as_double();
-    legs_cmd_timeout_ = get_node()->get_parameter("safety.legs_cmd_timeout").as_double();
+    joints_reference_timeout_ =
+        get_node()->get_parameter("safety.joints_reference_timeout").as_double();
     heartbeat_timeout_ = get_node()->get_parameter("safety.heartbeat_timeout").as_double();
 
     if (critical_strategy_ != "damping" && critical_strategy_ != "default_config" &&
@@ -300,12 +301,12 @@ CallbackReturn OmniController::on_configure(const rclcpp_lifecycle::State&)
     }
 
     if (has_legs_) {
-        rclcpp::QoS legs_qos(5);
-        legs_qos.reliability(rclcpp::ReliabilityPolicy::Reliable);
+        rclcpp::QoS joints_reference_qos(5);
+        joints_reference_qos.reliability(rclcpp::ReliabilityPolicy::Reliable);
 
-        legs_sub_ = get_node()->create_subscription<JointsCommand>(
-            "~/legs_cmd", legs_qos,
-            std::bind(&OmniController::legs_callback, this, std::placeholders::_1)
+        joints_reference_sub_ = get_node()->create_subscription<JointsCommand>(
+            "~/joints_reference", joints_reference_qos,
+            std::bind(&OmniController::joints_reference_callback, this, std::placeholders::_1)
         );
     }
 
@@ -331,7 +332,7 @@ CallbackReturn OmniController::on_configure(const rclcpp_lifecycle::State&)
 
     // ── Publishers ──────────────────────────────────────────────────────
     stt_pub_ = get_node()->create_publisher<JointsStates>("~/joints_state", 5);
-    cmd_pub_ = get_node()->create_publisher<JointsCommand>("~/joints_command", 5);
+    cmd_pub_ = get_node()->create_publisher<JointsCommand>("~/debug/joints_command", 5);
 
     if (pub_performance_)
         per_pub_ = get_node()->create_publisher<PacketPass>("~/performance", 5);
@@ -460,8 +461,8 @@ CallbackReturn OmniController::on_activate(const rclcpp_lifecycle::State&)
     ema_warmup_counter_ = 0;
     warn_throttle_counter_ = 0;
     damping_time_initialized_ = false;
-    legs_cmd_received_ = false;
-    legs_timeout_throttle_ = 0;
+    joints_reference_received_ = false;
+    joints_reference_timeout_throttle_ = 0;
     heartbeat_received_ = false;
 
     RCLCPP_INFO(
@@ -637,22 +638,23 @@ OmniController::update(const rclcpp::Time& time, const rclcpp::Duration&)
                     write_direct_wheel_commands();
             }
             if (has_legs_) {
-                // Check leg command timeout
-                if (legs_cmd_received_) {
-                    double since_last = (time - last_legs_cmd_time_).seconds();
-                    if (since_last > legs_cmd_timeout_) {
+                // Check joints reference timeout
+                if (joints_reference_received_) {
+                    double since_last = (time - last_joints_reference_time_).seconds();
+                    if (since_last > joints_reference_timeout_) {
                         // Hold last position — zero feedforward for pure position hold
                         for (const auto& jnt : joints_) {
                             leg_vel_cmd_[jnt] = 0.0;
                             leg_eff_cmd_[jnt] = 0.0;
                         }
-                        if (++legs_timeout_throttle_ >= 500) {
+                        if (++joints_reference_timeout_throttle_ >= 500) {
                             RCLCPP_WARN(
                                 get_node()->get_logger(),
-                                "Leg command timeout (%.2fs since last cmd), holding position",
+                                "Joints reference timeout (%.2fs since last reference), holding "
+                                "position",
                                 since_last
                             );
-                            legs_timeout_throttle_ = 0;
+                            joints_reference_timeout_throttle_ = 0;
                         }
                     }
                 }
@@ -690,14 +692,14 @@ void OmniController::heartbeat_callback(const std_msgs::msg::Empty::SharedPtr /*
     heartbeat_received_ = true;
 }
 
-void OmniController::legs_callback(const JointsCommand::SharedPtr msg)
+void OmniController::joints_reference_callback(const JointsCommand::SharedPtr msg)
 {
     std::lock_guard<std::mutex> lg(var_mutex_);
     if (c_stt_ == ControllerState::TRANSITION)
         return;
-    last_legs_cmd_time_ = get_node()->now();
-    legs_cmd_received_ = true;
-    legs_timeout_throttle_ = 0;
+    last_joints_reference_time_ = get_node()->now();
+    joints_reference_received_ = true;
+    joints_reference_timeout_throttle_ = 0;
     for (size_t i = 0; i < msg->name.size(); i++) {
         const auto& name = msg->name[i];
         if (leg_pos_cmd_.count(name)) {

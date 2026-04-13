@@ -2,7 +2,7 @@
 
 Unified ros2_control controller for the Mulinex omnidirectional robot.
 It:
-- receives legs commands
+- receives per-joint reference setpoints for non-wheel joints (legs, arms, etc.)
 - receives planar twist commands and converts them to wheel commands
 - broadcasts joint states and power distributor states
 
@@ -35,8 +35,9 @@ It:
 | Topic | Type | Direction | Description |
 |---|---|---|---|
 | `~/twist_cmd` | `Twist` | sub | Base velocity command (when `wheel_joints` + IK configured) |
-| `~/legs_cmd` | `JointsCommand` | sub | Per-joint commands (when `joints` configured) |
-| `~/joints_state` | `JointsStates` | pub | All motor joint states |
+| `~/joints_reference` | `JointsCommand` | sub | Per-joint reference setpoints from upstream controllers (e.g. `ik_controller`); applied to non-wheel joints (legs, arms, etc.) when `joints` is configured |
+| `~/joints_state` | `JointsStates` | pub | All motor joint states (hardware measurements) |
+| `~/debug/joints_command` | `JointsCommand` | pub | Echo of the commands actually written to hardware each cycle (all motors); for debugging / logging |
 | `~/performance` | `PacketPass` | pub | CAN packet loss & cycle duration (when `pub_performance: true`) |
 | `~/distributors_state` | `DistributorsState` | pub | Power distributor states (when `distributor_names` configured) |
 | `~/odom` | `TwistStamped` | pub | Wheel odometry (when `pub_odom: true`) |

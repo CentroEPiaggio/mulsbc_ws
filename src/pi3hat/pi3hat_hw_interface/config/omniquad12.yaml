@@ -178,5 +178,5 @@ omni_controller:
       # Action on critical fault: "damping" (ramp to zero), "stop" (immediate zero), "default_config" (apply default kp/kd)
       critical_strategy: "default_config"
       damping_duration: 10.0 # [s] ramp-down time when critical_strategy is "damping"
-      legs_cmd_timeout: 0.5 # [s] if no leg command received for this long, zero leg torques
+      joints_reference_timeout: 0.5 # [s] if no joint reference received for this long, hold last leg position
       heartbeat_timeout: 1.0 # [s] NUC heartbeat timeout; 0 disables (only checked after first heartbeat)
