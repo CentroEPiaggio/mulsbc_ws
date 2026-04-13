@@ -1,10 +1,74 @@
+import os
+import subprocess
+from datetime import datetime
+
+from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, ExecuteProcess
-from launch.conditions import IfCondition
+from launch.actions import DeclareLaunchArgument, ExecuteProcess, OpaqueFunction
 from launch.substitutions import Command, LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
+
+BAG_TOPICS = [
+    '/events/write_split',
+    '/ik_controller/base_pose',
+    '/joy',
+    '/joy/set_feedback',
+    '/nuc_heartbeat',
+    '/omni_controller/direct_wheels_cmd',
+    'omni_controller/distributors_state',
+    '/omni_controller/joints_command',
+    '/omni_controller/joints_state',
+    '/omni_controller/legs_cmd',
+    '/omni_controller/performance',
+    '/omni_controller/safety_state',
+    '/omni_controller/transition_event',
+    '/omni_controller/twist_cmd',
+    '/state_broadcaster/joints_state',
+    '/state_broadcaster/performance_indexes',
+    '/state_broadcaster/transition_event',
+]
+
+
+def _save_git_diff(repo_dir: str, out_file: str) -> None:
+    try:
+        head = subprocess.check_output(
+            ['git', '-C', repo_dir, 'log', '-1', '--oneline'],
+            text=True,
+            stderr=subprocess.DEVNULL,
+        )
+        diff = subprocess.check_output(
+            ['git', '-C', repo_dir, 'diff', 'HEAD'],
+            text=True,
+            stderr=subprocess.DEVNULL,
+        )
+        with open(out_file, 'w') as f:
+            f.write(f'# HEAD: {head}')
+            f.write(diff)
+    except (subprocess.CalledProcessError, FileNotFoundError) as e:
+        with open(out_file, 'w') as f:
+            f.write(f'# git info unavailable: {e}\n')
+
+
+def _setup_recording(context, *args, **kwargs):
+    if LaunchConfiguration('record_bag').perform(context).lower() not in ('true', '1', 'yes'):
+        return []
+
+    # Workspace root is 4 levels up from <ws>/install/<pkg>/share/<pkg>
+    workspace_dir = os.path.abspath(
+        os.path.join(get_package_share_directory('pi3hat_hw_interface'), '..', '..', '..', '..')
+    )
+    run_dir = os.path.join(workspace_dir, 'bags', datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
+    os.makedirs(run_dir, exist_ok=True)
+    _save_git_diff(workspace_dir, os.path.join(run_dir, 'git_diff.txt'))
+
+    return [
+        ExecuteProcess(
+            cmd=['ros2', 'bag', 'record', *BAG_TOPICS, '-o', os.path.join(run_dir, 'bag')],
+            output='screen',
+        )
+    ]
 
 
 def generate_launch_description():
@@ -42,34 +106,6 @@ def generate_launch_description():
         arguments=['omni_controller'],
     )
 
-    rosbag_record = ExecuteProcess(
-        condition=IfCondition(LaunchConfiguration('record_bag')),
-        cmd=[
-            'ros2',
-            'bag',
-            'record',
-            '/distributor_state_broadcaster/distributors_state',
-            '/distributor_state_broadcaster/transition_event',
-            '/events/write_split',
-            '/ik_controller/base_pose',
-            '/joy',
-            '/joy/set_feedback',
-            '/nuc_heartbeat',
-            '/omni_controller/direct_wheels_cmd',
-            '/omni_controller/joints_command',
-            '/omni_controller/joints_state',
-            '/omni_controller/legs_cmd',
-            '/omni_controller/performance',
-            '/omni_controller/safety_state',
-            '/omni_controller/transition_event',
-            '/omni_controller/twist_cmd',
-            '/state_broadcaster/joints_state',
-            '/state_broadcaster/performance_indexes',
-            '/state_broadcaster/transition_event',
-        ],
-        output='screen',
-    )
-
     return LaunchDescription(
         [
             urdf_name_arg,
@@ -78,6 +114,6 @@ def generate_launch_description():
             control_node,
             state_broadcaster_spawner,
             omni_controller_spawner,
-            rosbag_record,
+            OpaqueFunction(function=_setup_recording),
         ]
     )
