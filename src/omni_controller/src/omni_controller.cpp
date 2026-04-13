@@ -1067,7 +1067,7 @@ void OmniController::update_transition(const rclcpp::Time& time)
             leg_pos_cmd_[jnt] = q_target;
             leg_vel_cmd_[jnt] = 0.0;
             leg_eff_cmd_[jnt] = 0.0;
-            leg_kp_cmd_[jnt] = 1.0;
+            leg_kp_cmd_[jnt] = (transition_target_ == TARGET_REST) ? 0.0 : 1.0;
             leg_kd_cmd_[jnt] = 1.0;
         }
         transition_completed_ = true;
