@@ -21,6 +21,7 @@
             <param name="max_velocity">100.0</param>
             <param name="max_effort">10.0</param>
             <param name="actuator_trasmission">9.0</param>
+
             <param name="position_offset">0.0</param>
             <param name="second_encoder_trasmission">3.23076923</param>
 
@@ -77,10 +78,12 @@
             <param name="attitude_hz">400</param>
         </hardware>
 
-        <xacro:wheel_joint name="LF_WHEEL" id="3" bus="2"/>
-        <xacro:wheel_joint name="RF_WHEEL" id="5" bus="4"/>
-        <xacro:wheel_joint name="LH_WHEEL" id="9" bus="1"/>
-        <xacro:wheel_joint name="RH_WHEEL" id="7" bus="3"/>
+        <xacro:wheel_joint name="LF_WHEEL" id="11" bus="2"/>
+        <xacro:wheel_joint name="RF_WHEEL" id="12" bus="4"/>
+        <xacro:wheel_joint name="LH_WHEEL" id="14" bus="1"/>
+        <xacro:wheel_joint name="RH_WHEEL" id="13" bus="3"/>
+
+        
 
         <xacro:distributor_joint name="Distributor_L" id="32"/>
         <xacro:distributor_joint name="Distributor_R" id="33"/>
