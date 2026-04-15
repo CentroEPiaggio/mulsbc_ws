@@ -279,7 +279,7 @@ private:
     {
         return (val * 2 * M_PI) / actuator_transmission_;
     };
-    double FromMotorToJointEffort(double val) { return (val * 2 * M_PI) * actuator_transmission_; };
+    double FromMotorToJointEffort(double val) { return val * actuator_transmission_; };
 
     std::unique_ptr<Controller> c_;
     ActuatorOptions act_opt_;
