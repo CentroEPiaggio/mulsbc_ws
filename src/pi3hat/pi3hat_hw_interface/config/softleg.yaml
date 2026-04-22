@@ -1,0 +1,109 @@
+controller_manager:
+  ros__parameters:
+    update_rate: 500
+
+    state_broadcaster:
+      type: pi3hat_state_broadcaster/Pi3HatStateBroadcaster
+
+    distributor_state_broadcaster:
+      type: distributor_state_broadcaster/DistributorStateBroadcaster
+
+    debug_broadcaster:
+      type: debug_broadcaster/DebugBroadcaster
+
+    imu_sensor:
+      type: imu_sensor_broadcaster/IMUSensorBroadcaster
+
+    joint_controller:
+        type: pi3hat_joint_group_controller/Pi3HatJointGroupController
+
+
+    omni_controller:
+      type: omni_controller/OmniController   #CHANGE IN NODe
+
+state_broadcaster:
+  ros__parameters:
+    joints:
+      - "HFE"
+      - "KFE"
+
+    # second_encoders:
+    #     - "HFE"
+    #     - "KFE"
+
+    performance_index: true
+
+distributor_state_broadcaster:
+  ros__parameters:
+    distributors:
+      - "Distributor_L"
+
+
+
+imu_sensor:
+  ros__parameters:
+    frame_id: imu_link
+    sensor_name: Pi3Hat
+
+
+debug_broadcaster:
+  ros__parameters:
+    joints:
+      - "HFE"
+      - "KFE"
+     
+
+    # second_encoders:
+    #   - "HFE"
+    #   - "KFE"
+    
+joint_controller:
+  ros__parameters:
+    joints:
+      - "HFE"
+      - "KFE"
+      
+
+omni_controller:
+  ros__parameters:
+    # No wheels — set feet_type to "none" to disable wheel IK entirely
+    feet_type: none
+
+    # Actuated joints (hip and knee)
+    joints:
+      - HFE
+      - KFE
+
+    distributor_names:
+      - Distributor_L
+
+    # Rest/stand transitions (min-jerk interpolation)
+    # TODO: set q_stand to the desired standing pose angles [rad]
+    rest_duration: 5.0   # [s]
+    stand_duration: 5.0  # [s]
+    joint_targets:
+      HFE: { q_rest: 0.0, q_stand: 0.0 }  # TODO: set q_stand
+      KFE: { q_rest: 0.0, q_stand: 0.0 }  # TODO: set q_stand
+
+    # Communication
+    input_frequency: 100   # Expected joint reference rate [Hz]
+    BestEffort_QOS: true
+
+    # Features
+    sim: false
+    pub_odom: false
+    pub_performance: true
+
+    safety:
+      enabled: true
+      temp_warning_threshold: 50.0 # [C] motor temp above this triggers throttling (kp/kd halved)
+      temp_critical_threshold: 60.0 # [C] motor temp above this triggers the critical_strategy
+      battery_min_voltage: 24.0 # [V] distributor voltage below this triggers the critical_strategy
+      temp_recovery_hysteresis: 1.0 # [C] temp must drop below (warning - hysteresis) to recover
+      volt_recovery_hysteresis: 0.5 # [V] voltage must rise above (min + hysteresis) to recover
+      ema_window_samples: 5000 # EMA filter length for temp/voltage; averages over ema_window_samples / update_rate seconds
+      # Action on critical fault: "damping" (ramp to zero), "stop" (immediate zero), "default_config" (apply default kp/kd)
+      critical_strategy: "damping"
+      damping_duration: 10.0 # [s] ramp-down time when critical_strategy is "damping"
+      joints_reference_timeout: 0.5 # [s] if no joint reference received for this long, hold last leg position
+      heartbeat_timeout: 1.0 # [s] NUC heartbeat timeout; 0 disables (only checked after first heartbeat)
