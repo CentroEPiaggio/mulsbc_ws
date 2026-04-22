@@ -289,7 +289,8 @@ CallbackReturn OmniController::on_configure(const rclcpp_lifecycle::State&)
             dl_miss_count_++;
             if (dl_miss_count_ > 10) {
                 std::lock_guard<std::mutex> lg(var_mutex_);
-                c_stt_ = ControllerState::INACTIVE;
+                if (wheel_mode_ == WHEEL_IK)
+                    c_stt_ = ControllerState::INACTIVE;
             }
             RCLCPP_WARN(get_node()->get_logger(), "Twist deadline missed");
         };
@@ -778,6 +779,7 @@ void OmniController::wheel_mode_service_cb(
         return;
     }
     wheel_mode_ = req->data ? WHEEL_DIRECT : WHEEL_IK;
+    dl_miss_count_ = 0;
     // Zero both command buffers on mode switch
     base_vel_[0] = 0.0;
     base_vel_[1] = 0.0;
