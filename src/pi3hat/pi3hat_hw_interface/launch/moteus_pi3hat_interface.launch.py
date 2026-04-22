@@ -17,7 +17,7 @@ BAG_TOPICS = [
     '/joy/set_feedback',
     '/nuc_heartbeat',
     '/omni_controller/direct_wheels_cmd',
-    'omni_controller/distributors_state',
+    '/omni_controller/distributors_state',
     '/omni_controller/debug/joints_command',
     '/omni_controller/joints_state',
     '/omni_controller/joints_reference',
