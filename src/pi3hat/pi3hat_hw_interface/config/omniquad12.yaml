@@ -123,9 +123,9 @@ omni_controller:
       - RH_HFE
       - RH_KFE
 
-    # distributor_names:
-    #     - Distributor_R
-    #     - Distributor_L
+    distributor_names:
+      - Distributor_R
+      - Distributor_L
 
     # second_encoder_joints:
     #     - LF_HFE
