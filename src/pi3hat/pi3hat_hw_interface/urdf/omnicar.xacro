@@ -5,10 +5,10 @@
         <joint name="${name}">
             <param name="id">${id}</param>
             <param name="bus">${bus}</param>
-            <param name="second_encoder_source">1</param>
+            <param name="second_encoder_source">-1</param>
             <param name="type">motor</param>
 
-            <param name="KP">100.0</param>
+            <param name="KP">0.0</param>
             <param name="KD">1.0</param>
             <param name="KI">0.0</param>
             <param name="ilimit">0.0</param>
@@ -21,7 +21,7 @@
             <param name="max_velocity">100.0</param>
             <param name="max_effort">10.0</param>
             <param name="actuator_trasmission">9.0</param>
-            <param name="position_offset">-0.1059179</param>
+            <param name="position_offset">0.0</param>
             <param name="second_encoder_trasmission">3.23076923</param>
 
             <param name="position_res">64</param>
