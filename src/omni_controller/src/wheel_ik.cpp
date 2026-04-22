@@ -27,19 +27,19 @@ void MecanumIK::configure(const WheelIKConfig& config, const std::vector<std::st
     // Wheel order: LF, LH, RF, RH
     base2wheel_[0][0] = -1.0 / wr; // LF
     base2wheel_[0][1] = 1.0 / wr;
-    base2wheel_[0][2] = -rot_term / wr;
+    base2wheel_[0][2] = rot_term / wr;
 
     base2wheel_[1][0] = -1.0 / wr; // LH
     base2wheel_[1][1] = -1.0 / wr;
-    base2wheel_[1][2] = -rot_term / wr;
+    base2wheel_[1][2] = rot_term / wr;
 
     base2wheel_[2][0] = 1.0 / wr; // RF
     base2wheel_[2][1] = 1.0 / wr;
-    base2wheel_[2][2] = -rot_term / wr;
+    base2wheel_[2][2] = rot_term / wr;
 
     base2wheel_[3][0] = 1.0 / wr; // RH
     base2wheel_[3][1] = -1.0 / wr;
-    base2wheel_[3][2] = -rot_term / wr;
+    base2wheel_[3][2] = rot_term / wr;
 
     // Forward kinematics: wheel velocities → [vx, vy, omega]
     //                      LF       LH       RF       RH
@@ -53,10 +53,10 @@ void MecanumIK::configure(const WheelIKConfig& config, const std::vector<std::st
     odom_[1][2] = wr / 4.0;
     odom_[1][3] = -wr / 4.0;
 
-    odom_[2][0] = -wr / (4.0 * rot_term);
-    odom_[2][1] = -wr / (4.0 * rot_term);
-    odom_[2][2] = -wr / (4.0 * rot_term);
-    odom_[2][3] = -wr / (4.0 * rot_term);
+    odom_[2][0] = wr / (4.0 * rot_term);
+    odom_[2][1] = wr / (4.0 * rot_term);
+    odom_[2][2] = wr / (4.0 * rot_term);
+    odom_[2][3] = wr / (4.0 * rot_term);
 }
 
 std::vector<double> MecanumIK::inverse(double vx, double vy, double omega) const
