@@ -1,0 +1,104 @@
+controller_manager:
+  ros__parameters:
+    update_rate: 500
+
+    state_broadcaster:
+      type: pi3hat_state_broadcaster/Pi3HatStateBroadcaster
+
+    imu_sensor:
+      type: imu_sensor_broadcaster/IMUSensorBroadcaster
+
+    omni_controller:
+      type: omni_controller/OmniController
+
+state_broadcaster:
+  ros__parameters:
+    joints:
+      - "LF_WHEEL"
+      - "LH_WHEEL"
+      - "RF_WHEEL"
+      - "RH_WHEEL"
+      - "arm_tilt"
+      - "arm_pan"
+    performance_index: true
+
+imu_sensor:
+  ros__parameters:
+    frame_id: imu_link
+    sensor_name: Pi3Hat
+
+debug_broadcaster:
+  ros__parameters:
+    joints:
+      - "RF_WHEEL"
+      - "LF_WHEEL"
+      - "LH_WHEEL"
+      - "RH_WHEEL"
+      - "arm_tilt"
+      - "arm_pan"
+      
+
+    # second_encoders:
+    #   - "LF_HFE"
+    #   - "LF_KFE"
+    #   - "LH_HFE"
+    #   - "LH_KFE"
+    #   - "RF_HFE"
+    #   - "RF_KFE"
+    #   - "RH_HFE"
+    #   - "RH_KFE"
+
+
+omni_controller:
+  ros__parameters:
+    wheel_joints:
+      LF: LF_WHEEL
+      LH: LH_WHEEL
+      RF: RF_WHEEL
+      RH: RH_WHEEL
+
+    joint:
+      - "arm_tilt"
+      - "arm_pan"
+
+    # joints: #omitted — defaults to empty. Do NOT use "[]" (ROS 2 can't infer the type)
+    #     - ...
+
+    distributor_names:
+      - Distributor_R
+      - Distributor_L
+
+    # second_encoder_joints:
+    #   - LF_WHEEL
+    #   - LH_WHEEL
+    #   - RF_WHEEL
+    #   - RH_WHEEL
+
+    wheel_mode: ik # Wheel control mode: "ik" (twist → WheelIK) or "direct" (per-wheel velocity)
+
+    feet_type: mecanum # Wheel IK type: "mecanum", "differential", or "none"
+    wheel_rad: 0.05 # Wheel radius [m]
+    driveshaft_x: 0.235 # Longitudinal distance from base center to wheel [m]
+    driveshaft_y: 0.188 # Lateral distance from base center to wheel [m]
+    mecanum_angle: 135.0 # Mecanum roller angle [deg] (only used with feet_type: mecanum)
+
+    input_frequency: 100 # Expected twist command rate [Hz] (sets deadline QoS)
+    BestEffort_QOS: true # true = BestEffort QoS, false = Reliable QoS for twist subscriber
+
+    sim: false # true = skip hardware, accept commands without real motors
+    pub_odom: false # Publish wheel odometry on ~/odom
+    pub_performance: true # Publish CAN packet loss & cycle duration on ~/performance
+
+    safety:
+      enabled: true
+      temp_warning_threshold: 50.0 # [C] motor temp above this triggers throttling (kp/kd halved)
+      temp_critical_threshold: 60.0 # [C] motor temp above this triggers the critical_strategy
+      battery_min_voltage: 24.0 # [V] distributor voltage below this triggers the critical_strategy
+      temp_recovery_hysteresis: 1.0 # [C] temp must drop below (warning - hysteresis) to recover
+      volt_recovery_hysteresis: 0.5 # [V] voltage must rise above (min + hysteresis) to recover
+      ema_window_samples: 5000 # EMA filter length for temp/voltage; averages over ema_window_samples / update_rate seconds
+      # Action on critical fault: "damping" (ramp to zero), "stop" (immediate zero), "default_config" (apply default kp/kd)
+      critical_strategy: "damping"
+      damping_duration: 3.0 # [s] ramp-down time when critical_strategy is "damping"
+      joints_reference_timeout: 0.5 # [s] if no joint reference received for this long, hold last leg position
+      heartbeat_timeout: 1.0 # [s] NUC heartbeat timeout; 0 disables (only checked after first heartbeat)
