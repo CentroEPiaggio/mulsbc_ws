@@ -57,7 +57,7 @@ omni_controller:
     #   RF: RF_WHEEL
     #   RH: RH_WHEEL
 
-    joint:
+    joints:
       - "arm_tilt"
       - "arm_pan"
 
