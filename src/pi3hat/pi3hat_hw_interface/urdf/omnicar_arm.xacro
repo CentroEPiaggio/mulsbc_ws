@@ -93,8 +93,8 @@
 
     
            
-        <xacro:arm_joint name="arm_tilt" id="15" bus="4"/>
-        <xacro:arm_joint name="arm_pan" id="16" bus="4"/>
+        <xacro:arm_joint name="arm_pan" id="15" bus="4"/>
+        <xacro:arm_joint name="arm_tilt" id="16" bus="4"/>
         
 
         <xacro:distributor_joint name="Distributor_L" id="32"/>

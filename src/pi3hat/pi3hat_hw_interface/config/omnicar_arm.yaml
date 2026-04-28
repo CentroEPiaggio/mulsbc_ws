@@ -18,8 +18,8 @@ state_broadcaster:
       - "LH_WHEEL"
       - "RF_WHEEL"
       - "RH_WHEEL"
-      - "arm_tilt"
       - "arm_pan"
+      - "arm_tilt"
     performance_index: true
 
 imu_sensor:
@@ -34,8 +34,8 @@ debug_broadcaster:
       - "LF_WHEEL"
       - "LH_WHEEL"
       - "RH_WHEEL"
-      - "arm_tilt"
       - "arm_pan"
+      - "arm_tilt"
       
 
     # second_encoders:
@@ -57,9 +57,9 @@ omni_controller:
       RF: RF_WHEEL
       RH: RH_WHEEL
 
-    joint:
-      - "arm_tilt"
+    joints:
       - "arm_pan"
+      - "arm_tilt"
 
     # joints: #omitted — defaults to empty. Do NOT use "[]" (ROS 2 can't infer the type)
     #     - ...
