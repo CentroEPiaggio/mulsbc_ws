@@ -78,10 +78,10 @@
             <param name="attitude_hz">400</param>
         </hardware>
 
-        <xacro:wheel_joint name="LF_WHEEL" id="11" bus="2"/>
-        <xacro:wheel_joint name="RF_WHEEL" id="12" bus="4"/>
-        <xacro:wheel_joint name="LH_WHEEL" id="14" bus="1"/>
-        <xacro:wheel_joint name="RH_WHEEL" id="13" bus="3"/>
+        <xacro:wheel_joint name="LF_WHEEL" id="3" bus="2"/>
+        <xacro:wheel_joint name="RF_WHEEL" id="5" bus="4"/>
+        <xacro:wheel_joint name="LH_WHEEL" id="9" bus="1"/>
+        <xacro:wheel_joint name="RH_WHEEL" id="7" bus="3"/>
 
         
 
