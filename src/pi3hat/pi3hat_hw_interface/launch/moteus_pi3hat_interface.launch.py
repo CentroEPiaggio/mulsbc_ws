@@ -76,7 +76,7 @@ def generate_launch_description():
     conf_name_arg = DeclareLaunchArgument('conf_file', default_value='omnicar.yaml')
     record_bag_arg = DeclareLaunchArgument(
         'record_bag',
-        default_value='false',
+        default_value='true',
     )
 
     robot_model_path = PathJoinSubstitution(
