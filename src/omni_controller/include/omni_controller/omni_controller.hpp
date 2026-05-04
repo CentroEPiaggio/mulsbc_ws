@@ -106,6 +106,8 @@ private:
     bool has_transitions_ = false;
     bool transition_completed_ = false;
     bool sim_flag_ = false;
+    double sim_kp_ = 50.0;
+    double sim_kd_ = 1.0;
     bool pub_odom_ = false;
     bool pub_performance_ = true;
 

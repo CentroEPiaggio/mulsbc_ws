@@ -49,6 +49,8 @@ CallbackReturn OmniController::on_init()
 
         // Feature flags
         auto_declare<bool>("sim", false);
+        auto_declare<double>("sim_kp", 50.0);
+        auto_declare<double>("sim_kd", 1.0);
         auto_declare<bool>("pub_odom", false);
         auto_declare<bool>("pub_performance", true);
         auto_declare<std::string>("wheel_mode", "ik");
@@ -122,6 +124,10 @@ CallbackReturn OmniController::on_configure(const rclcpp_lifecycle::State&)
     distributor_names_ = get_node()->get_parameter("distributor_names").as_string_array();
     second_encoder_joints_ = get_node()->get_parameter("second_encoder_joints").as_string_array();
     sim_flag_ = get_node()->get_parameter("sim").as_bool();
+    if (sim_flag_) {
+        sim_kp_ = get_node()->get_parameter("sim_kp").as_double();
+        sim_kd_ = get_node()->get_parameter("sim_kd").as_double();
+    }
     pub_odom_ = get_node()->get_parameter("pub_odom").as_bool();
     pub_performance_ = get_node()->get_parameter("pub_performance").as_bool();
 
@@ -494,9 +500,16 @@ controller_interface::InterfaceConfiguration OmniController::command_interface_c
     controller_interface::InterfaceConfiguration cfg;
     cfg.type = controller_interface::interface_configuration_type::INDIVIDUAL;
 
-    for (const auto& jnt : all_motor_joints_) {
-        cfg.names.push_back(jnt + "/" + hardware_interface::HW_IF_VELOCITY);
-        if (!sim_flag_) {
+    if (sim_flag_) {
+        // Simulation: wheels use velocity, legs use effort
+        for (const auto& jnt : wheel_joints_)
+            cfg.names.push_back(jnt + "/" + hardware_interface::HW_IF_VELOCITY);
+        for (const auto& jnt : joints_)
+            cfg.names.push_back(jnt + "/" + hardware_interface::HW_IF_EFFORT);
+    } else {
+        // Real hardware: all joints use velocity + position + effort + kp_scale + kd_scale
+        for (const auto& jnt : all_motor_joints_) {
+            cfg.names.push_back(jnt + "/" + hardware_interface::HW_IF_VELOCITY);
             cfg.names.push_back(jnt + "/" + hardware_interface::HW_IF_POSITION);
             cfg.names.push_back(jnt + "/" + hardware_interface::HW_IF_EFFORT);
             cfg.names.push_back(jnt + "/" + hw_if::KP_SCALE);
@@ -511,41 +524,52 @@ controller_interface::InterfaceConfiguration OmniController::state_interface_con
     controller_interface::InterfaceConfiguration cfg;
     cfg.type = controller_interface::interface_configuration_type::INDIVIDUAL;
 
-    // System-level performance interfaces
-    std::string sys_name = "Pi3Hat";
-    cfg.names.push_back(sys_name + "/" + hw_if::VALIDITY_LOSS);
-    cfg.names.push_back(sys_name + "/" + hw_if::CYCLE_DUR);
-
-    // Per-motor package loss
-    for (const auto& jnt : all_motor_joints_)
-        cfg.names.push_back(jnt + "/" + hw_if::PACKAGE_LOSS);
-
-    // Per-motor state
-    for (const auto& jnt : all_motor_joints_) {
-        cfg.names.push_back(jnt + "/" + hardware_interface::HW_IF_POSITION);
-        cfg.names.push_back(jnt + "/" + hardware_interface::HW_IF_VELOCITY);
-        cfg.names.push_back(jnt + "/" + hardware_interface::HW_IF_EFFORT);
-        cfg.names.push_back(jnt + "/" + hw_if::TEMPERATURE);
-        cfg.names.push_back(jnt + "/" + hw_if::Q_CURRENT);
-    }
-
-    // Second encoder state
-    for (size_t i = 0; i < all_motor_joints_.size(); i++) {
-        if (se_flag_[i]) {
-            cfg.names.push_back(
-                all_motor_joints_[i] + "_second_encoder/" + hardware_interface::HW_IF_POSITION
-            );
-            cfg.names.push_back(
-                all_motor_joints_[i] + "_second_encoder/" + hardware_interface::HW_IF_VELOCITY
-            );
+    if (sim_flag_) {
+        // Simulation: only standard state interfaces per motor joint
+        for (const auto& jnt : all_motor_joints_) {
+            cfg.names.push_back(jnt + "/" + hardware_interface::HW_IF_POSITION);
+            cfg.names.push_back(jnt + "/" + hardware_interface::HW_IF_VELOCITY);
+            cfg.names.push_back(jnt + "/" + hardware_interface::HW_IF_EFFORT);
         }
-    }
+    } else {
+        // Real hardware: full state interfaces
 
-    // Distributor state
-    for (const auto& dist : distributor_names_) {
-        cfg.names.push_back(dist + "/" + hw_if::VOLTAGE);
-        cfg.names.push_back(dist + "/" + hw_if::CURRENT);
-        cfg.names.push_back(dist + "/" + hw_if::TEMPERATURE);
+        // System-level performance interfaces
+        std::string sys_name = "Pi3Hat";
+        cfg.names.push_back(sys_name + "/" + hw_if::VALIDITY_LOSS);
+        cfg.names.push_back(sys_name + "/" + hw_if::CYCLE_DUR);
+
+        // Per-motor package loss
+        for (const auto& jnt : all_motor_joints_)
+            cfg.names.push_back(jnt + "/" + hw_if::PACKAGE_LOSS);
+
+        // Per-motor state
+        for (const auto& jnt : all_motor_joints_) {
+            cfg.names.push_back(jnt + "/" + hardware_interface::HW_IF_POSITION);
+            cfg.names.push_back(jnt + "/" + hardware_interface::HW_IF_VELOCITY);
+            cfg.names.push_back(jnt + "/" + hardware_interface::HW_IF_EFFORT);
+            cfg.names.push_back(jnt + "/" + hw_if::TEMPERATURE);
+            cfg.names.push_back(jnt + "/" + hw_if::Q_CURRENT);
+        }
+
+        // Second encoder state
+        for (size_t i = 0; i < all_motor_joints_.size(); i++) {
+            if (se_flag_[i]) {
+                cfg.names.push_back(
+                    all_motor_joints_[i] + "_second_encoder/" + hardware_interface::HW_IF_POSITION
+                );
+                cfg.names.push_back(
+                    all_motor_joints_[i] + "_second_encoder/" + hardware_interface::HW_IF_VELOCITY
+                );
+            }
+        }
+
+        // Distributor state
+        for (const auto& dist : distributor_names_) {
+            cfg.names.push_back(dist + "/" + hw_if::VOLTAGE);
+            cfg.names.push_back(dist + "/" + hw_if::CURRENT);
+            cfg.names.push_back(dist + "/" + hw_if::TEMPERATURE);
+        }
     }
 
     return cfg;
@@ -560,9 +584,9 @@ OmniController::update(const rclcpp::Time& time, const rclcpp::Duration&)
 {
     // Phase 1: Read and publish state
     publish_joint_states(time);
-    if (pub_performance_ && per_pub_)
+    if (!sim_flag_ && pub_performance_ && per_pub_)
         publish_performance(time);
-    if (has_distributors_ && dist_pub_)
+    if (!sim_flag_ && has_distributors_ && dist_pub_)
         publish_distributor_states(time);
     if (pub_odom_ && has_wheels_ && wheel_ik_ && odom_pub_)
         publish_odometry(time);
@@ -932,11 +956,21 @@ void OmniController::write_direct_wheel_commands()
 
 void OmniController::write_leg_commands()
 {
-    for (const auto& jnt : joints_) {
-        set_command(jnt + "/" + hardware_interface::HW_IF_POSITION, leg_pos_cmd_[jnt]);
-        set_command(jnt + "/" + hardware_interface::HW_IF_VELOCITY, leg_vel_cmd_[jnt]);
-        set_command(jnt + "/" + hardware_interface::HW_IF_EFFORT, leg_eff_cmd_[jnt]);
-        if (!sim_flag_) {
+    if (sim_flag_) {
+        // Simulation: compute effort via PD + feedforward
+        for (const auto& jnt : joints_) {
+            double pos_actual = get_state(jnt + "/" + hardware_interface::HW_IF_POSITION);
+            double vel_actual = get_state(jnt + "/" + hardware_interface::HW_IF_VELOCITY);
+            double tau = sim_kp_ * (leg_pos_cmd_[jnt] - pos_actual)
+                       + sim_kd_ * (leg_vel_cmd_[jnt] - vel_actual)
+                       + leg_eff_cmd_[jnt];
+            set_command(jnt + "/" + hardware_interface::HW_IF_EFFORT, tau);
+        }
+    } else {
+        for (const auto& jnt : joints_) {
+            set_command(jnt + "/" + hardware_interface::HW_IF_POSITION, leg_pos_cmd_[jnt]);
+            set_command(jnt + "/" + hardware_interface::HW_IF_VELOCITY, leg_vel_cmd_[jnt]);
+            set_command(jnt + "/" + hardware_interface::HW_IF_EFFORT, leg_eff_cmd_[jnt]);
             set_command(jnt + "/" + hw_if::KP_SCALE, leg_kp_cmd_[jnt]);
             set_command(jnt + "/" + hw_if::KD_SCALE, leg_kd_cmd_[jnt]);
         }
@@ -945,9 +979,14 @@ void OmniController::write_leg_commands()
 
 void OmniController::zero_all_commands()
 {
-    for (const auto& jnt : all_motor_joints_) {
-        set_command(jnt + "/" + hardware_interface::HW_IF_VELOCITY, 0.0);
-        if (!sim_flag_) {
+    if (sim_flag_) {
+        for (const auto& jnt : wheel_joints_)
+            set_command(jnt + "/" + hardware_interface::HW_IF_VELOCITY, 0.0);
+        for (const auto& jnt : joints_)
+            set_command(jnt + "/" + hardware_interface::HW_IF_EFFORT, 0.0);
+    } else {
+        for (const auto& jnt : all_motor_joints_) {
+            set_command(jnt + "/" + hardware_interface::HW_IF_VELOCITY, 0.0);
             set_command(jnt + "/" + hardware_interface::HW_IF_POSITION, std::nan("1"));
             set_command(jnt + "/" + hardware_interface::HW_IF_EFFORT, 0.0);
             set_command(jnt + "/" + hw_if::KP_SCALE, 0.0);
@@ -1039,10 +1078,15 @@ void OmniController::update_transition(const rclcpp::Time& time)
         double q_target = (transition_target_ == TARGET_REST) ? cfg.q_rest : cfg.q_stand;
         double q = cosine_interp(transition_q_start_[jnt], q_target, t);
 
-        set_command(jnt + "/" + hardware_interface::HW_IF_POSITION, q);
-        set_command(jnt + "/" + hardware_interface::HW_IF_VELOCITY, 0.0);
-        set_command(jnt + "/" + hardware_interface::HW_IF_EFFORT, 0.0);
-        if (!sim_flag_) {
+        if (sim_flag_) {
+            double pos_actual = get_state(jnt + "/" + hardware_interface::HW_IF_POSITION);
+            double vel_actual = get_state(jnt + "/" + hardware_interface::HW_IF_VELOCITY);
+            double tau = sim_kp_ * (q - pos_actual) + sim_kd_ * (0.0 - vel_actual);
+            set_command(jnt + "/" + hardware_interface::HW_IF_EFFORT, tau);
+        } else {
+            set_command(jnt + "/" + hardware_interface::HW_IF_POSITION, q);
+            set_command(jnt + "/" + hardware_interface::HW_IF_VELOCITY, 0.0);
+            set_command(jnt + "/" + hardware_interface::HW_IF_EFFORT, 0.0);
             set_command(jnt + "/" + hw_if::KP_SCALE, 1.0);
             set_command(jnt + "/" + hw_if::KD_SCALE, 1.0);
         }
@@ -1256,10 +1300,16 @@ void OmniController::update_damping(const rclcpp::Time& time)
         // Hold current position, ramp kp_scale from 1.0 → 0.0 via cosine
         double kp_scale = cosine_interp(1.0, 0.0, t);
         for (const auto& jnt : joints_) {
-            set_command(jnt + "/" + hardware_interface::HW_IF_POSITION, damping_q_start_[jnt]);
-            set_command(jnt + "/" + hardware_interface::HW_IF_VELOCITY, 0.0);
-            set_command(jnt + "/" + hardware_interface::HW_IF_EFFORT, 0.0);
-            if (!sim_flag_) {
+            if (sim_flag_) {
+                double pos_actual = get_state(jnt + "/" + hardware_interface::HW_IF_POSITION);
+                double vel_actual = get_state(jnt + "/" + hardware_interface::HW_IF_VELOCITY);
+                double tau = (sim_kp_ * kp_scale) * (damping_q_start_[jnt] - pos_actual)
+                           + sim_kd_ * (0.0 - vel_actual);
+                set_command(jnt + "/" + hardware_interface::HW_IF_EFFORT, tau);
+            } else {
+                set_command(jnt + "/" + hardware_interface::HW_IF_POSITION, damping_q_start_[jnt]);
+                set_command(jnt + "/" + hardware_interface::HW_IF_VELOCITY, 0.0);
+                set_command(jnt + "/" + hardware_interface::HW_IF_EFFORT, 0.0);
                 set_command(jnt + "/" + hw_if::KP_SCALE, kp_scale);
                 set_command(jnt + "/" + hw_if::KD_SCALE, 1.0);
             }
@@ -1277,10 +1327,15 @@ void OmniController::update_damping(const rclcpp::Time& time)
                     target_q = joint_targets_[jnt].q_rest;
             }
             double q = cosine_interp(damping_q_start_[jnt], target_q, t);
-            set_command(jnt + "/" + hardware_interface::HW_IF_POSITION, q);
-            set_command(jnt + "/" + hardware_interface::HW_IF_VELOCITY, 0.0);
-            set_command(jnt + "/" + hardware_interface::HW_IF_EFFORT, 0.0);
-            if (!sim_flag_) {
+            if (sim_flag_) {
+                double pos_actual = get_state(jnt + "/" + hardware_interface::HW_IF_POSITION);
+                double vel_actual = get_state(jnt + "/" + hardware_interface::HW_IF_VELOCITY);
+                double tau = sim_kp_ * (q - pos_actual) + sim_kd_ * (0.0 - vel_actual);
+                set_command(jnt + "/" + hardware_interface::HW_IF_EFFORT, tau);
+            } else {
+                set_command(jnt + "/" + hardware_interface::HW_IF_POSITION, q);
+                set_command(jnt + "/" + hardware_interface::HW_IF_VELOCITY, 0.0);
+                set_command(jnt + "/" + hardware_interface::HW_IF_EFFORT, 0.0);
                 set_command(jnt + "/" + hw_if::KP_SCALE, 1.0);
                 set_command(jnt + "/" + hw_if::KD_SCALE, 1.0);
             }
