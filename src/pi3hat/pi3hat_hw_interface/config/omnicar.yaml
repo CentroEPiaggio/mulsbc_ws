@@ -26,6 +26,9 @@ imu_sensor:
 
 omni_controller:
   ros__parameters:
+    velocity_lpf:
+      enabled: false             # Enable or disable the filter (default: false)
+      cutoff_freq: 2.0          # [Hz]
     wheel_joints:
       LF: LF_WHEEL
       LH: LH_WHEEL
