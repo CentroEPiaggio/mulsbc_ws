@@ -23,6 +23,9 @@
             <param name="actuator_trasmission">${actuator_trasmission}</param>
             <param name="position_offset">${position_offset}</param>
             <param name="second_encoder_trasmission">3.23076923</param>
+            
+            <param name="max_power_W">450</param>
+            <param name="max_current_A">40</param>
 
             <param name="position_res">64</param>
             <param name="velocity_res">64</param>

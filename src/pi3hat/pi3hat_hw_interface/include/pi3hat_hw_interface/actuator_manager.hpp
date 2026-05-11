@@ -223,6 +223,19 @@ public:
     void MakeQuery() { *cmd_frame_ = c_->MakeQuery(&query_format_); }
     void MakeStop();
     void SendExact() { c_->DiagnosticWrite("d exact 0.0\n"); }
+    
+    // Helper method to send diagnostic command and verify "ok" response
+    void SendDiagnosticCommandAndVerify(const std::string& cmd)
+    {
+        RCLCPP_INFO(rclcpp::get_logger("Actuator_Manager"), "%s", cmd.c_str());
+        c_->DiagnosticWrite(cmd);
+        std::string response = c_->DiagnosticRead();
+        if (response.find("ok") == std::string::npos && !response.empty()) {
+            RCLCPP_WARN(rclcpp::get_logger("Actuator_Manager"), 
+                "Parameter not confirmed with 'ok' for motor id %d on bus %d. Response: %s", 
+                id_, bus_, response.c_str());
+        }
+    }
 
 private:
     mjbots::moteus::Resolution parse_res(int res)
