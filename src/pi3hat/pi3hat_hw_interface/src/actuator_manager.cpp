@@ -183,7 +183,7 @@ bool Actuator_Manager::ConfigureActuator(std::shared_ptr<mjbots::moteus::Transpo
     cmd_diagn = "conf set servo.max_velocity " + cmd_str + "\n";
     SendDiagnosticCommandAndVerify(cmd_diagn);
 
-    cmd_diagn = "conf set servo.max_power " + std::to_string(act_opt_.max_power_W) + "\n";
+    cmd_diagn = "conf set servo.max_power_W " + std::to_string(act_opt_.max_power_W) + "\n";
     SendDiagnosticCommandAndVerify(cmd_diagn);
     
     cmd_diagn = "conf set servo.max_current_A " + std::to_string(act_opt_.max_current_A) + "\n";
