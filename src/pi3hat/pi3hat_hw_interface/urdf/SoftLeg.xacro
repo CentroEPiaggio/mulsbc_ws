@@ -23,8 +23,8 @@
             <param name="actuator_trasmission">${actuator_trasmission}</param>
             <param name="position_offset">${position_offset}</param>
             <param name="second_encoder_trasmission">3.23076923</param>
-            
-            <param name="max_power_W">450</param>
+            <param name="max_voltage">34.0</param>
+            <param name="flux_brake_margin_voltage">5.0</param>
             <param name="max_current_A">${max_current_A}</param>
 
             <param name="position_res">64</param>
