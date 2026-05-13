@@ -1,0 +1,4 @@
+[submodule "src/omni_controller"]
+	path = src/omni_controller
+	url = git@github.com:CentroEPiaggio/omni_controller.git
+	branch = omnirace_hw
