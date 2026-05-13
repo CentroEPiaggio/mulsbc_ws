@@ -1,39 +1,3 @@
-
-        <joint name="joint1">  
-            <param name="id">3</param>
-            <param name="bus">1</param>
-            <param name="motor_transmission">9.0</param>
-            <param name="sec_enc_transmission">3.23076923</param> 
-            <param name="KP">70.0</param> 
-            <param name="KD">1.0</param> 
-            <param name="KI">0.0</param> 
-            <param name="i_limit">0.0</param>
-            <param name="p_lim_max">3.14</param> 
-            <param name="p_lim_min">-3.14</param>
-            <param name="p_offset">0.0</param>
-            <param name="max_vel">10.0</param>
-            <param name="max_torque">15.0</param>
-        </joint>
-
-        <joint name="joint2">  
-            <param name="id">4</param>
-            <param name="bus">1</param>
-            <param name="motor_transmission">9.0</param>  
-            <param name="sec_enc_transmission">3.23076923</param>  
-            <param name="KP">70.0</param> 
-            <param name="KD">1.0</param> 
-            <param name="KI">0.0</param> 
-            <param name="i_limit">0.0</param>
-            <param name="p_lim_max">3.14</param> 
-            <param name="p_lim_min">-3.14</param>
-            <param name="p_offset">0.0</param>
-            <param name="max_vel">10.0</param>
-            <param name="max_torque">15.0</param>
-        </joint>
-
-         
-    </ros2_control>
-</robot>
 <?xml version="1.0" ?>
 <robot name="mazzolini_arm"  xmlns:xacro="http://ros.org/wiki/xacro">
 
@@ -81,7 +45,7 @@
         </joint>
     </xacro:macro>
 
-    <xacro:macro name="joint" params="name id bus">
+    <xacro:macro name="arm_joint" params="name id bus">
         <xacro:joint name="${name}" id="${id}" bus="${bus}" kp="70.0" kd="1.0" second_encoder_source="-1" max_pos_limit="3.14" min_pos_limit="-3.14" actuator_trasmission="9" max_current_A="80.0"/>
     </xacro:macro>
 
@@ -111,8 +75,8 @@
        
     
            
-        <xacro:joint name="joint_1" id="3" bus="1"/>
-        <xacro:joint name="joint_2" id="4" bus="1"/>
+        <xacro:arm_joint name="joint1" id="3" bus="1"/>
+        <xacro:arm_joint name="joint2" id="4" bus="1"/>
         
 
         
