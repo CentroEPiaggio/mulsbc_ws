@@ -77,10 +77,12 @@ omni_controller:
     distributor_names:
       - Distributor_L
 
-    # Rest/stand transitions (min-jerk interpolation)
+    # Rest/stand/activation transitions (min-jerk interpolation)
     # TODO: set q_stand to the desired standing pose angles [rad]
     rest_duration: 5.0   # [s]
     stand_duration: 5.0  # [s]
+    activation_duration: 0.1 # [s] time to raise HFE joints during controller activation (0 disables)
+    activation_hip_offset_deg: 0.0 # [deg] HFE offset raised during activation
     joint_targets:
       HFE: { q_rest: 0.0, q_stand: 0.0 }  # TODO: set q_stand
       KFE: { q_rest: 0.0, q_stand: 0.0 }  # TODO: set q_stand

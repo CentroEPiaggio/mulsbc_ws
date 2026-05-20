@@ -137,9 +137,11 @@ omni_controller:
     #     - RH_HFE
     #     - RH_KFE
 
-    # Transitions (rest / stand) — durations for the min-jerk interpolation between rest and stand poses
+    # Transitions (rest / stand / activation) — durations for interpolations
     rest_duration: 5.0 # [s] time to interpolate from stand to rest pose (0 disables transitions)
     stand_duration: 5.0 # [s] time to interpolate from rest to stand pose (0 disables transitions)
+    activation_duration: 2.0 # [s] time to raise HFE joints during controller activation (0 disables)
+    activation_hip_offset_deg: 7.5 # [deg] HFE offset raised during activation (applied to LF/LH/RF/RH_HFE)
     joint_targets:
       LF_HFE: { q_rest: 0.0, q_stand: -0.56 }
       LF_KFE: { q_rest: 0.0, q_stand: 1.8 }
