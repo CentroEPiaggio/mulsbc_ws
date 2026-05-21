@@ -15,11 +15,10 @@ controller_manager:
       type: imu_sensor_broadcaster/IMUSensorBroadcaster
 
     joint_controller:
-        type: pi3hat_joint_group_controller/Pi3HatJointGroupController
-
+      type: pi3hat_joint_group_controller/Pi3HatJointGroupController
 
     omni_controller:
-      type: omni_controller/OmniController   #CHANGE IN NODe
+      type: omni_controller/OmniController #CHANGE IN NODe
 
 state_broadcaster:
   ros__parameters:
@@ -38,31 +37,26 @@ distributor_state_broadcaster:
     distributors:
       - "Distributor_L"
 
-
-
 imu_sensor:
   ros__parameters:
     frame_id: imu_link
     sensor_name: Pi3Hat
-
 
 debug_broadcaster:
   ros__parameters:
     joints:
       - "HFE"
       - "KFE"
-     
 
     # second_encoders:
     #   - "HFE"
     #   - "KFE"
-    
+
 joint_controller:
   ros__parameters:
     joints:
       - "HFE"
       - "KFE"
-      
 
 omni_controller:
   ros__parameters:
@@ -77,16 +71,18 @@ omni_controller:
     distributor_names:
       - Distributor_L
 
-    # Rest/stand transitions (min-jerk interpolation)
+    # Rest/stand/activation transitions (min-jerk interpolation)
     # TODO: set q_stand to the desired standing pose angles [rad]
-    rest_duration: 5.0   # [s]
-    stand_duration: 5.0  # [s]
+    rest_duration: 5.0 # [s]
+    stand_duration: 5.0 # [s]
+    activation_duration: 0.1 # [s] time to raise HFE joints during controller activation (0 disables)
+    activation_hip_offset_deg: 0.0 # [deg] HFE offset raised during activation
     joint_targets:
-      HFE: { q_rest: 0.0, q_stand: 0.0 }  # TODO: set q_stand
-      KFE: { q_rest: 0.0, q_stand: 0.0 }  # TODO: set q_stand
+      HFE: { q_rest: 0.0, q_stand: 0.0 } # TODO: set q_stand
+      KFE: { q_rest: 0.0, q_stand: 0.0 } # TODO: set q_stand
 
     # Communication
-    input_frequency: 100   # Expected joint reference rate [Hz]
+    input_frequency: 100 # Expected joint reference rate [Hz]
     BestEffort_QOS: true
 
     # Features

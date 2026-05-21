@@ -48,7 +48,7 @@ struct ActuatorOptions {
     double max_position_slip = 0.0;
     double max_velocity_slip = 0.0;
     double max_voltage = MAX_VOLT;
-    double max_power_W = MAX_POWER;
+    double max_power_W = MAX_POWER; // Fixed value: 450.0
     bool enable_motor_temperature = false;
     double max_current_A = MAX_CURR;
     double flux_brake_margin_voltage = FLUX_BRAKE_MARGIN;
@@ -456,7 +456,10 @@ public:
             "max_velocity",
             "max_effort",
             "actuator_trasmission",
-            "position_offset"
+            "position_offset",
+            "max_voltage",
+            "flux_brake_margin_voltage",
+            "max_current_A"
         };
         available_extra_params_ = {"second_encoder_trasmission"};
         changes_.fill(false);
@@ -508,6 +511,15 @@ public:
             } else if (i->first.compare(available_base_params_[13]) == 0) {
                 configurable_.position_offset = std::stod(i->second);
                 changes_[13] = true;
+            } else if (i->first.compare(available_base_params_[14]) == 0) {
+                configurable_.max_voltage = std::stod(i->second);
+                changes_[14] = true;
+            } else if (i->first.compare(available_base_params_[15]) == 0) {
+                configurable_.flux_brake_margin_voltage = std::stod(i->second);
+                changes_[15] = true;
+            } else if (i->first.compare(available_base_params_[16]) == 0) {
+                configurable_.max_current_A = std::stod(i->second);
+                changes_[16] = true;
             } else if (i->first.compare(available_extra_params_[0]) == 0)
                 configurable_.second_encoder_trasmission = std::stod(i->second);
         }
@@ -521,7 +533,7 @@ public:
     };
 
 private:
-    std::array<bool, 14> changes_;
+    std::array<bool, 17> changes_;
 };
 
 class PDQueryFormatInfo: public ElementInfo<power_dist_manager::DistributorQuery> {

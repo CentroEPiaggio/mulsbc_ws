@@ -107,6 +107,9 @@ joint_controller:
 
 omni_controller:
   ros__parameters:
+    velocity_lpf:
+      enabled: True # Enable or disable the filter (default: false)
+      cutoff_freq: 2.0 # [Hz]
     wheel_joints:
       LF: LF_WHEEL
       LH: LH_WHEEL
@@ -137,9 +140,11 @@ omni_controller:
     #     - RH_HFE
     #     - RH_KFE
 
-    # Transitions (rest / stand) — durations for the min-jerk interpolation between rest and stand poses
+    # Transitions (rest / stand / activation) — durations for interpolations
     rest_duration: 5.0 # [s] time to interpolate from stand to rest pose (0 disables transitions)
     stand_duration: 5.0 # [s] time to interpolate from rest to stand pose (0 disables transitions)
+    activation_duration: 1.0 # [s] time to raise HFE joints during controller activation (0 disables)
+    activation_hip_offset_deg: 7.5 # [deg] HFE offset raised during activation (applied to LF/LH/RF/RH_HFE)
     joint_targets:
       LF_HFE: { q_rest: 0.0, q_stand: -0.56 }
       LF_KFE: { q_rest: 0.0, q_stand: 1.8 }
@@ -171,7 +176,7 @@ omni_controller:
       enabled: true
       temp_warning_threshold: 50.0 # [C] motor temp above this triggers throttling (kp/kd halved)
       temp_critical_threshold: 60.0 # [C] motor temp above this triggers the critical_strategy
-      battery_min_voltage: 20.0 # [V] distributor voltage below this triggers the critical_strategy
+      battery_min_voltage: 21.0 # [V] distributor voltage below this triggers the critical_strategy
       temp_recovery_hysteresis: 1.0 # [C] temp must drop below (warning - hysteresis) to recover
       volt_recovery_hysteresis: 0.5 # [V] voltage must rise above (min + hysteresis) to recover
       ema_window_samples: 5000 # EMA filter length for temp/voltage; averages over ema_window_samples / update_rate seconds

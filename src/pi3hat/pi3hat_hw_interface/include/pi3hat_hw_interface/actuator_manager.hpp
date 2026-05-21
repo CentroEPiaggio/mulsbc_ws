@@ -224,6 +224,74 @@ public:
     void MakeStop();
     void SendExact() { c_->DiagnosticWrite("d exact 0.0\n"); }
 
+    // Helper method to send diagnostic command and verify "ok" response
+
+    void SendDiagnosticCommandAndVerify(const std::string& cmd)
+    {
+        RCLCPP_INFO(rclcpp::get_logger("Actuator_Manager"), "%s", cmd.c_str());
+
+        const int max_retries = 3;
+
+        for (int attempt = 1; attempt <= max_retries; attempt++) {
+            c_->DiagnosticWrite(cmd);
+
+            std::string response;
+            bool got_response = false;
+
+            for (int i = 0; i < 3; i++) {
+                response = c_->DiagnosticRead(1);
+                if (!response.empty()) {
+                    got_response = true;
+                    break;
+                }
+            }
+
+            // normalizzazione
+            std::string r = response;
+            r.erase(std::remove_if(r.begin(), r.end(), ::isspace), r.end());
+            std::transform(r.begin(), r.end(), r.begin(), ::toupper);
+
+            // OK
+            if (r == "OK") {
+                RCLCPP_INFO(
+                    rclcpp::get_logger("Actuator_Manager"),
+                    "Parameter confirmed (attempt %d) motor id %d bus %d", attempt, id_, bus_
+                );
+                return;
+            }
+
+            // ERR → retry
+            if (r.find("ERR") != std::string::npos) {
+                RCLCPP_WARN(
+                    rclcpp::get_logger("Actuator_Manager"), "ERR response (attempt %d/%d): %s",
+                    attempt, max_retries, response.c_str()
+                );
+            }
+            // NO RESPONSE → retry
+            else if (!got_response) {
+                RCLCPP_WARN(
+                    rclcpp::get_logger("Actuator_Manager"), "No response (attempt %d/%d)", attempt,
+                    max_retries
+                );
+            } else {
+                RCLCPP_WARN(
+                    rclcpp::get_logger("Actuator_Manager"),
+                    "Unexpected response (attempt %d/%d): %s", attempt, max_retries,
+                    response.c_str()
+                );
+            }
+
+            // backoff leggero (IMPORTANTISSIMO)
+            std::this_thread::sleep_for(std::chrono::milliseconds(30 * attempt));
+        }
+
+        RCLCPP_ERROR(
+            rclcpp::get_logger("Actuator_Manager"),
+            "FAILED to confirm command after %d attempts for motor id %d bus %d", max_retries, id_,
+            bus_
+        );
+    }
+
 private:
     mjbots::moteus::Resolution parse_res(int res)
     {

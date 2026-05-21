@@ -116,49 +116,47 @@ bool Actuator_Manager::ConfigureActuator(std::shared_ptr<mjbots::moteus::Transpo
 
     cmd_diagn = "conf set servo.pid_position.kp " +
                 std::to_string(FromJointToMotorGain(act_opt_.Kp, true)) + "\n";
-    RCLCPP_INFO(rclcpp::get_logger("Actuator_Manager"), "%s", cmd_diagn.c_str());
-    c_->DiagnosticWrite(cmd_diagn);
+    SendDiagnosticCommandAndVerify(cmd_diagn);
+
     cmd_diagn = "conf set servo.pid_position.kd " +
                 std::to_string(FromJointToMotorGain(act_opt_.Kd, true)) + "\n";
-    RCLCPP_INFO(rclcpp::get_logger("Actuator_Manager"), "%s", cmd_diagn.c_str());
-    c_->DiagnosticWrite(cmd_diagn);
+    SendDiagnosticCommandAndVerify(cmd_diagn);
+
     cmd_diagn = "conf set servo.pid_position.ki " +
                 std::to_string(FromJointToMotorGain(act_opt_.Ki, true)) + "\n";
-    RCLCPP_INFO(rclcpp::get_logger("Actuator_Manager"), "%s", cmd_diagn.c_str());
-    c_->DiagnosticWrite(cmd_diagn);
+    SendDiagnosticCommandAndVerify(cmd_diagn);
+
     cmd_diagn = "conf set servo.pid_position.ki " +
                 std::to_string(FromJointToMotorGain(act_opt_.Ki, true)) + "\n";
-    RCLCPP_INFO(rclcpp::get_logger("Actuator_Manager"), "%s", cmd_diagn.c_str());
-    c_->DiagnosticWrite(cmd_diagn);
+    SendDiagnosticCommandAndVerify(cmd_diagn);
+
     cmd_diagn = "conf set servo.pid_position.ilimit " +
                 std::to_string(FromJointToMotorEffort(act_opt_.ilimit, true)) + "\n";
-    RCLCPP_INFO(rclcpp::get_logger("Actuator_Manager"), "%s", cmd_diagn.c_str());
-    c_->DiagnosticWrite(cmd_diagn);
+    SendDiagnosticCommandAndVerify(cmd_diagn);
+
     cmd_diagn = "conf set servo.pid_position.iratelimit " +
                 std::to_string(FromJointToMotorEffort(act_opt_.iratelimit, true)) + "\n";
-    RCLCPP_INFO(rclcpp::get_logger("Actuator_Manager"), "%s", cmd_diagn.c_str());
-    c_->DiagnosticWrite(cmd_diagn);
+    SendDiagnosticCommandAndVerify(cmd_diagn);
+
     std::string cmd_str;
     if (act_opt_.max_position_slip != 0.0)
         cmd_str = std::to_string(FromJointToMotorPosition(act_opt_.max_position_slip, true));
     else
         cmd_str = "nan";
     cmd_diagn = "conf set servo.max_position_slip " + cmd_str + "\n";
-    RCLCPP_INFO(rclcpp::get_logger("Actuator_Manager"), "%s", cmd_diagn.c_str());
-    c_->DiagnosticWrite(cmd_diagn);
+    SendDiagnosticCommandAndVerify(cmd_diagn);
+
     if (act_opt_.max_velocity_slip != 0.0)
         cmd_str = std::to_string(FromJointToMotorPosition(act_opt_.max_velocity_slip, true));
     else
         cmd_str = "nan";
 
-
     cmd_diagn = "conf set servo.max_velocity_slip " + cmd_str + "\n";
-    RCLCPP_INFO(rclcpp::get_logger("Actuator_Manager"), "%s", cmd_diagn.c_str());
-    c_->DiagnosticWrite(cmd_diagn);
+    SendDiagnosticCommandAndVerify(cmd_diagn);
+
     cmd_diagn = "conf set servo.enable_motor_temperature " +
                 std::to_string(act_opt_.enable_motor_temperature) + "\n";
-    RCLCPP_INFO(rclcpp::get_logger("Actuator_Manager"), "%s", cmd_diagn.c_str());
-    c_->DiagnosticWrite(cmd_diagn);
+    SendDiagnosticCommandAndVerify(cmd_diagn);
 
     if (act_opt_.pos_min_limit != 0.0)
         cmd_str = std::to_string(
@@ -167,8 +165,8 @@ bool Actuator_Manager::ConfigureActuator(std::shared_ptr<mjbots::moteus::Transpo
     else
         cmd_str = "nan";
     cmd_diagn = "conf set servopos.position_min " + cmd_str + "\n";
-    RCLCPP_INFO(rclcpp::get_logger("Actuator_Manager"), "%s", cmd_diagn.c_str());
-    c_->DiagnosticWrite(cmd_diagn);
+    SendDiagnosticCommandAndVerify(cmd_diagn);
+
     if (act_opt_.pos_max_limit != 0.0)
         cmd_str = std::to_string(
             FromJointToMotorPosition(act_opt_.pos_max_limit, true) + position_offset_
@@ -176,32 +174,30 @@ bool Actuator_Manager::ConfigureActuator(std::shared_ptr<mjbots::moteus::Transpo
     else
         cmd_str = "nan";
     cmd_diagn = "conf set servopos.position_max " + cmd_str + "\n";
-    RCLCPP_INFO(rclcpp::get_logger("Actuator_Manager"), "%s", cmd_diagn.c_str());
-    c_->DiagnosticWrite(cmd_diagn);
+    SendDiagnosticCommandAndVerify(cmd_diagn);
 
     if (act_opt_.max_velocity != 0.0)
         cmd_str = std::to_string(FromJointToMotorPosition(act_opt_.max_velocity, true));
     else
         cmd_str = "nan";
     cmd_diagn = "conf set servo.max_velocity " + cmd_str + "\n";
-    RCLCPP_INFO(rclcpp::get_logger("Actuator_Manager"), "%s", cmd_diagn.c_str());
-    c_->DiagnosticWrite(cmd_diagn);
+    SendDiagnosticCommandAndVerify(cmd_diagn);
 
-    cmd_diagn = "conf set servo.max_power " + std::to_string(act_opt_.max_power_W) + "\n";
-    RCLCPP_INFO(rclcpp::get_logger("Actuator_Manager"), "%s", cmd_diagn.c_str());
-    c_->DiagnosticWrite(cmd_diagn);
+    cmd_diagn = "conf set servo.max_voltage " + std::to_string(act_opt_.max_voltage) + "\n";
+    SendDiagnosticCommandAndVerify(cmd_diagn);
+
+    cmd_diagn = "conf set servo.flux_brake_margin_voltage " +
+                std::to_string(act_opt_.flux_brake_margin_voltage) + "\n";
+    SendDiagnosticCommandAndVerify(cmd_diagn);
+
+    cmd_diagn = "conf set servo.max_power_W " + std::to_string(act_opt_.max_power_W) + "\n";
+    SendDiagnosticCommandAndVerify(cmd_diagn);
+
     cmd_diagn = "conf set servo.max_current_A " + std::to_string(act_opt_.max_current_A) + "\n";
-    RCLCPP_INFO(rclcpp::get_logger("Actuator_Manager"), "%s", cmd_diagn.c_str());
-    c_->DiagnosticWrite(cmd_diagn);
+    SendDiagnosticCommandAndVerify(cmd_diagn);
+
     cmd_diagn = "conf set servo.default_timeout_s 0.1\n";
-    RCLCPP_INFO(rclcpp::get_logger("Actuator_Manager"), "%s", cmd_diagn.c_str());
-    c_->DiagnosticWrite(cmd_diagn);
-    // MODIFICA: Aggiunto conf write per salvare i parametri nel flash del driver
-    // Questo assicura che i parametri siano persistenti dopo il riavvio
-    // Per rimuovere, commenta o elimina queste righe
-    cmd_diagn = "conf write\n";
-    RCLCPP_INFO(rclcpp::get_logger("Actuator_Manager"), "%s", cmd_diagn.c_str());
-    c_->DiagnosticWrite(cmd_diagn);
+    SendDiagnosticCommandAndVerify(cmd_diagn);
     c_->DiagnosticFlush();
     // RCLCPP_INFO(rclcpp::get_logger("Actuator_Manager"), "Extra register number: %d",
     // c_->options().query_format.extra[0].register_number);

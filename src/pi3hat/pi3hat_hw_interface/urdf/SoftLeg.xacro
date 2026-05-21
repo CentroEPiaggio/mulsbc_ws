@@ -1,7 +1,7 @@
 <?xml version="1.0" ?>
 <robot name="softleg" xmlns:xacro="http://ros.org/wiki/xacro">
 
-    <xacro:macro name="joint" params="name id bus kp kd second_encoder_source max_pos_limit min_pos_limit actuator_trasmission position_offset">
+    <xacro:macro name="joint" params="name id bus kp kd second_encoder_source max_pos_limit min_pos_limit actuator_trasmission position_offset max_current_A">
         <joint name="${name}">
             <param name="id">${id}</param>
             <param name="bus">${bus}</param>
@@ -23,6 +23,9 @@
             <param name="actuator_trasmission">${actuator_trasmission}</param>
             <param name="position_offset">${position_offset}</param>
             <param name="second_encoder_trasmission">3.23076923</param>
+            <param name="max_voltage">34.0</param>
+            <param name="flux_brake_margin_voltage">5.0</param>
+            <param name="max_current_A">${max_current_A}</param>
 
             <param name="position_res">64</param>
             <param name="velocity_res">64</param>
@@ -48,9 +51,9 @@
                      second_encoder_source="-1"
                      max_pos_limit="3.14" min_pos_limit="-3.14"
                      actuator_trasmission="9"
-                     position_offset="${position_offset}"/>
+                     position_offset="${position_offset}" max_current_A="80.0"/>
     </xacro:macro>
-    
+
     <xacro:macro name="distributor_joint" params="name id">
         <joint name="${name}">
             <param name="id">${id}</param>
@@ -89,7 +92,7 @@
         <xacro:leg_joint name="HFE" id="4" bus="1" position_offset="-0.1059179"/>
         <xacro:leg_joint name="KFE" id="8" bus="1" position_offset="-0.1059179"/>
         <xacro:distributor_joint name="Distributor_L" id="32"/>
-      
+
 
     </ros2_control>
 </robot>
